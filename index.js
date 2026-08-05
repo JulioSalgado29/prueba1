@@ -14,17 +14,47 @@ app.get('/', (req, res) => {
   res.json({ mensaje: 'API corriendo localmente' });
 });
 
-// Listar usuarios
-app.get('/api/usuarios', async (req, res) => {
+// Listar dueno_muestra
+app.get('/api/dueno_muestra', async (req, res) => {
   try {
-    const resultado = await pool.query('SELECT * FROM usuarios');
+    const resultado = await pool.query
+    (`SELECT 
+      id_dueno_muestra,
+      email_usuario,
+      estado,
+      fecha_creacion,
+      id_inventario,
+      nombre,
+      usuario_creacion
+    FROM dueno_muestra
+    ORDER BY id_dueno_muestra DESC`);
     res.json(resultado.rows);
   } catch (error) {
-    console.error('Error en GET /api/usuarios:', error.message);
+    console.error('Error en GET /api/dueno_muestra:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
+app.post('/api/dueno_muestra', async (req, res) => {
+  const { email_usuario, fecha_creacion, id_inventario, nombre, usuario_creacion } = req.body;
+
+  const emailLimpio = email_usuario.trim().toLowerCase();
+
+  try {
+    const nuevo = await pool.query(
+      'INSERT INTO dueno_muestra (email_usuario, fecha_creacion, id_inventario, nombre, usuario_creacion) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [emailLimpio, fecha_creacion, id_inventario, nombre, usuario_creacion]
+    );
+
+    res.status(201).json(nuevo.rows[0]);
+
+  } catch (error) {
+    console.error('Error en POST /api/dueno_muestra:', error.message);  
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+/*
 // Expresión regular para validar formato de correo electrónico
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -73,6 +103,7 @@ app.post('/api/usuarios', async (req, res) => {
     res.status(500).json({ error: 'Error al registrar usuario' });
   }
 });
+*/
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor escuchando en http://0.0.0.0:${PORT}`);
