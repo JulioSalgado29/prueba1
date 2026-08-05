@@ -16,6 +16,31 @@ app.get('/', (req, res) => {
 
 //#region dueno_muestra
   // Listar dueno_muestra
+  app.get('/api/dueno_muestra/:id_inventario', async (req, res) => {
+    const { id_inventario } = req.params;
+    try {
+      const resultado = await pool.query(
+      `SELECT 
+        id_dueno_muestra,
+        email_usuario,
+        estado,
+        fecha_creacion,
+        id_inventario,
+        nombre,
+        usuario_creacion
+      FROM dueno_muestra
+      WHERE estado = true AND 
+            id_inventario = $1
+      ORDER BY nombre DESC`,
+      [id_inventario]
+    );
+      res.json(resultado.rows);
+    } catch (error) {
+      console.error('Error en GET /api/dueno_muestra:', error.message);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+  // Buscar dueno_muestra
   app.get('/api/dueno_muestra/:id', async (req, res) => {
     const { id } = req.params;
     try {
