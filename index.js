@@ -16,8 +16,8 @@ app.get('/', (req, res) => {
 
 //#region dueno_muestra
   // Listar dueno_muestra
-  app.get('/api/dueno_muestra/:id_dueno_muestra', async (req, res) => {
-    const { id_dueno_muestra } = req.params;
+  app.get('/api/dueno_muestra/:id', async (req, res) => {
+    const { id } = req.params;
     try {
       const resultado = await pool.query(
       `SELECT 
@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
       WHERE estado = true AND 
             id_dueno_muestra = $1
       ORDER BY nombre DESC`,
-      [id_dueno_muestra]
+      [id]
     );
       res.json(resultado.rows);
     } catch (error) {
