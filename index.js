@@ -15,8 +15,8 @@ app.get('/', (req, res) => {
 });
 
 //#region dueno_muestra
-  // Listar dueno_muestra
-  app.get('/api/dueno_muestra/:id_inventario', async (req, res) => {
+  // Listar dueno_muestra de un inventario
+  app.get('/api/dueno_muestra/inventario/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
     try {
       const resultado = await pool.query(
