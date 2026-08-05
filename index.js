@@ -15,6 +15,7 @@ app.get('/', (req, res) => {
 });
 
 //#region dueno_muestra
+
   // Listar dueno_muestra de un inventario
   app.get('/api/dueno_muestra/inventario/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
@@ -40,6 +41,7 @@ app.get('/', (req, res) => {
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
+
   // Buscar dueno_muestra
   app.get('/api/dueno_muestra/:id', async (req, res) => {
     const { id } = req.params;
