@@ -74,7 +74,7 @@ router.get('/:id', async (req, res) => {
 
 // Crear un nuevo calzado
 // POST /api/calzado
-app.post('/', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const {
       nombre,
@@ -117,7 +117,7 @@ app.post('/', async (req, res) => {
 
 // Editar un calzado existente
 // PUT /api/calzado/:id
-app.put('/:id', async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const {
