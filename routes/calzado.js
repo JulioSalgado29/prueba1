@@ -124,7 +124,8 @@ router.post('/', async (req, res) => {
       parsedInventarioId
     ];
 
-    const result = await db.query(query, values);
+    // Se cambió db.query por pool.query
+    const result = await pool.query(query, values);
 
     return res.status(201).json({
       message: 'Calzado creado exitosamente',
@@ -188,7 +189,8 @@ router.put('/:id', async (req, res) => {
       parsedCalzadoId
     ];
 
-    const result = await db.query(query, values);
+    // Se cambió db.query por pool.query
+    const result = await pool.query(query, values);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Calzado no encontrado' });
