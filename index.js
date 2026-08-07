@@ -9,6 +9,8 @@ const usuarioRoutes = require('./routes/usuario');
 const inventarioRoutes = require('./routes/inventario');
 const tipoCalzadoRoutes = require('./routes/tipo_calzado');
 const calzadoRoutes = require('./routes/calzado');
+const filaInventarioRoutes = require('./routes/fila_inventario');
+const subfilaInventarioRoutes = require('./routes/subfila_inventario');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +30,8 @@ app.use('/api/usuario', usuarioRoutes);
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/tipo_calzado', tipoCalzadoRoutes);
 app.use('/api/calzado', calzadoRoutes);
+app.use('/api/fila_inventario', filaInventarioRoutes);
+app.use('/api/subfila_inventario', subfilaInventarioRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
