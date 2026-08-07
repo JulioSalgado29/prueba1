@@ -186,4 +186,34 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Listar TODOS los tipos de calzado por inventario (activos e inactivos)
+// Petición: GET /api/tipo_calzado/inventario/:id_inventario/todos
+router.get('/inventario/:id_inventario/todos', async (req, res) => {
+  const { id_inventario } = req.params;
+  try {
+    const resultado = await pool.query(
+      `SELECT 
+        id_tipo_calzado,
+        nombre,
+        icono,
+        taco,
+        plataforma,
+        colores,
+        usuario_creacion,
+        email_usuario,
+        activo,
+        fecha_creacion,
+        id_inventario
+      FROM tipo_calzado
+      WHERE id_inventario = $1
+      ORDER BY fecha_creacion DESC`,
+      [id_inventario]
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error('Error en GET /api/tipo_calzado/inventario/todos:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;

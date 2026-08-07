@@ -35,6 +35,131 @@ router.get('/inventario/:id_inventario', async (req, res) => {
     }
 });
 
+// Obtener un calzado por ID
+// Petición: GET /api/calzado/:id
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const resultado = await pool.query(
+      `SELECT 
+        id_calzado,
+        nombre,
+        icono,
+        precio_real,
+        taco,
+        plataforma,
+        colores,
+        id_tipo_calzado,
+        usuario_creacion,
+        email_usuario,
+        activo,
+        fecha_creacion,
+        id_inventario
+      FROM calzado
+      WHERE id_calzado = $1 AND activo = true`,
+      [id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ error: 'Calzado no encontrado' });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (error) {
+    console.error('Error en GET /api/calzado/:id:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Crear un nuevo calzado
+// POST /api/calzado
+app.post('/', async (req, res) => {
+  try {
+    const {
+      nombre,
+      icono,
+      precio_real,
+      taco,
+      plataforma,
+      colores,
+      id_tipo_calzado,
+      usuario_creacion,
+      email_usuario,
+      id_inventario
+    } = req.body;
+
+    // Consulta SQL de inserción
+    const query = `
+      INSERT INTO calzado (
+        nombre, icono, precio_real, taco, plataforma, colores,
+        id_tipo_calzado, usuario_creacion, email_usuario, id_inventario, activo
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+      RETURNING id_calzado;
+    `;
+
+    const values = [
+      nombre, icono, precio_real, taco, plataforma, colores,
+      id_tipo_calzado, usuario_creacion, email_usuario, id_inventario
+    ];
+
+    const result = await db.query(query, values);
+
+    return res.status(201).json({
+      message: 'Calzado creado exitosamente',
+      id_calzado: result.rows[0].id_calzado
+    });
+  } catch (error) {
+    console.error('Error al crear calzado:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Editar un calzado existente
+// PUT /api/calzado/:id
+app.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      nombre,
+      icono,
+      precio_real,
+      taco,
+      plataforma,
+      colores,
+      id_tipo_calzado,
+      usuario_creacion,
+      email_usuario
+    } = req.body;
+
+    const query = `
+      UPDATE calzado SET
+        nombre = $1,
+        icono = $2,
+        precio_real = $3,
+        taco = $4,
+        plataforma = $5,
+        colores = $6,
+        id_tipo_calzado = $7,
+        usuario_creacion = $8,
+        email_usuario = $9
+      WHERE id_calzado = $10;
+    `;
+
+    const values = [
+      nombre, icono, precio_real, taco, plataforma, colores,
+      id_tipo_calzado, usuario_creacion, email_usuario, id
+    ];
+
+    await db.query(query, values);
+
+    return res.status(200).json({ message: 'Calzado actualizado correctamente' });
+  } catch (error) {
+    console.error('Error al actualizar calzado:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Eliminar calzado (Baja lógica)
 // Petición: DELETE /api/calzado/:id
 router.delete('/:id', async (req, res) => {
