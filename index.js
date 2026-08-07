@@ -5,6 +5,7 @@ require('dotenv').config();
 // Importar rutas de cada tabla
 const duenoMuestraRoutes = require('./routes/dueno_muestra');
 const sesionGoogleLogRoutes = require('./routes/sesion_google_log');
+const usuarioRoutes = require('./routes/usuario');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.get('/', (req, res) => {
 // Registrar las rutas de dueno_muestra
 app.use('/api/dueno_muestra', duenoMuestraRoutes);
 app.use('/api/sesion_google_log', sesionGoogleLogRoutes);
+app.use('/api/usuario', usuarioRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
