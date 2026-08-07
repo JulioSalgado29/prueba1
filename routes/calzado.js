@@ -89,18 +89,39 @@ router.post('/', async (req, res) => {
       id_inventario
     } = req.body;
 
-    // Consulta SQL de inserción
+    // Conversión e higienización segura de tipos
+    const parsedPrecioReal = parseFloat(precio_real) || 0.0;
+    const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
+    const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
+
     const query = `
       INSERT INTO calzado (
-        nombre, icono, precio_real, taco, plataforma, colores,
-        id_tipo_calzado, usuario_creacion, email_usuario, id_inventario, activo
+        nombre, 
+        icono, 
+        precio_real, 
+        taco, 
+        plataforma, 
+        colores,
+        id_tipo_calzado, 
+        usuario_creacion, 
+        email_usuario, 
+        id_inventario, 
+        activo
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
       RETURNING id_calzado;
     `;
 
     const values = [
-      nombre, icono, precio_real, taco, plataforma, colores,
-      id_tipo_calzado, usuario_creacion, email_usuario, id_inventario
+      nombre || '',
+      icono || '',
+      parsedPrecioReal,
+      Boolean(taco),
+      Boolean(plataforma),
+      Boolean(colores),
+      parsedTipoCalzadoId,
+      usuario_creacion || null,
+      email_usuario || null,
+      parsedInventarioId
     ];
 
     const result = await db.query(query, values);
@@ -110,8 +131,11 @@ router.post('/', async (req, res) => {
       id_calzado: result.rows[0].id_calzado
     });
   } catch (error) {
-    console.error('Error al crear calzado:', error);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error detallado al crear calzado:', error.message);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor', 
+      detalle: error.message 
+    });
   }
 });
 
@@ -132,6 +156,11 @@ router.put('/:id', async (req, res) => {
       email_usuario
     } = req.body;
 
+    // Conversión e higienización segura de tipos
+    const parsedCalzadoId = parseInt(id, 10);
+    const parsedPrecioReal = parseFloat(precio_real) || 0.0;
+    const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
+
     const query = `
       UPDATE calzado SET
         nombre = $1,
@@ -147,16 +176,31 @@ router.put('/:id', async (req, res) => {
     `;
 
     const values = [
-      nombre, icono, precio_real, taco, plataforma, colores,
-      id_tipo_calzado, usuario_creacion, email_usuario, id
+      nombre || '',
+      icono || '',
+      parsedPrecioReal,
+      Boolean(taco),
+      Boolean(plataforma),
+      Boolean(colores),
+      parsedTipoCalzadoId,
+      usuario_creacion || null,
+      email_usuario || null,
+      parsedCalzadoId
     ];
 
-    await db.query(query, values);
+    const result = await db.query(query, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Calzado no encontrado' });
+    }
 
     return res.status(200).json({ message: 'Calzado actualizado correctamente' });
   } catch (error) {
-    console.error('Error al actualizar calzado:', error);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error detallado al actualizar calzado:', error.message);
+    return res.status(500).json({ 
+      error: 'Error interno del servidor', 
+      detalle: error.message 
+    });
   }
 });
 
