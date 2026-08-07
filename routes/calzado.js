@@ -25,7 +25,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       FROM calzado
       WHERE activo = true AND 
             id_inventario = $1
-      ORDER BY nombre DESC`,
+      ORDER BY nombre ASC`,
             [id_inventario]
         );
         res.json(resultado.rows);
