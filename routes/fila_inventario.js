@@ -154,7 +154,7 @@ router.post('/guardar', async (req, res) => {
 // Petición: PUT /api/fila_inventario/:id_fila_inventario
 router.put('/:id_fila_inventario', async (req, res) => {
   const { id_fila_inventario } = req.params;
-  const { id_calzado, cantidad, usuario_creacion, subfilas } = req.body;
+  const { id_calzado, cantidad, usuario_creacion, email_user, subfilas } = req.body;
   const client = await pool.connect();
 
   try {
@@ -174,19 +174,30 @@ router.put('/:id_fila_inventario', async (req, res) => {
       return res.status(404).json({ error: 'Fila de inventario no encontrada' });
     }
 
-    // 2. Eliminar todas las subfilas anteriores asociadas
+    // 2. Eliminar todas las subfilas anteriores
     await client.query(
       `DELETE FROM subfila_inventario WHERE id_fila_inventario = $1`,
       [id_fila_inventario]
     );
 
-    // 3. Reinsertar las nuevas subfilas
-    for (const sub of subfilas) {
+    // 3. Reinsertar las nuevas subfilas con los tipos exactos
+    const listaSubfilas = Array.isArray(subfilas) ? subfilas : [];
+
+    for (const sub of listaSubfilas) {
       await client.query(
         `INSERT INTO subfila_inventario 
-          (id_fila_inventario, cantidad, talla, taco, plataforma, colores, usuario_creacion)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [id_fila_inventario, sub.cantidad, sub.talla, sub.taco, sub.plataforma, sub.colores, usuario_creacion]
+          (id_fila_inventario, cantidad, talla, taco, plataforma, colores, usuario_creacion, email_user)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id_fila_inventario,
+          parseInt(sub.cantidad, 10) || 0,                         // integer
+          parseInt(sub.talla, 10) || 0,                            // integer
+          parseInt(sub.taco, 10) || 0,                            // integer
+          String(sub.plataforma ?? '0'),                           // character varying
+          String(sub.colores ?? '0'),                              // character varying
+          String(usuario_creacion || 'anon'),                      // character varying
+          String(email_user || req.body.email_user || 'anon@mail.com') // character varying (OBLIGATORIO)
+        ]
       );
     }
 
