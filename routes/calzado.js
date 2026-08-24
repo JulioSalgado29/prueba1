@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// Listar calzados activos por inventario
+// 1. Listar calzados activos por inventario
 // Petición: GET /api/calzado/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
@@ -31,6 +31,40 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         res.json(resultado.rows);
     } catch (error) {
         console.error('Error en GET /api/calzado/inventario:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// 2. Listar calzados activos por inventario QUE TENGAN COLORES EN TRUE
+// Petición: GET /api/calzado/inventario/:id_inventario/colores
+router.get('/inventario/:id_inventario/colores', async (req, res) => {
+    const { id_inventario } = req.params;
+    try {
+        const resultado = await pool.query(
+            `SELECT 
+        id_calzado,
+        nombre,
+        icono,
+        precio_real,
+        taco,
+        plataforma,
+        colores,
+        id_tipo_calzado,
+        usuario_creacion,
+        email_usuario,
+        activo,
+        fecha_creacion,
+        id_inventario
+      FROM calzado
+      WHERE activo = true 
+        AND colores = true
+        AND id_inventario = $1
+      ORDER BY nombre ASC`,
+            [id_inventario]
+        );
+        res.json(resultado.rows);
+    } catch (error) {
+        console.error('Error en GET /api/calzado/inventario/:id_inventario/colores:', error.message);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
@@ -124,7 +158,6 @@ router.post('/', async (req, res) => {
       parsedInventarioId
     ];
 
-    // Se cambió db.query por pool.query
     const result = await pool.query(query, values);
 
     return res.status(201).json({
@@ -189,7 +222,6 @@ router.put('/:id', async (req, res) => {
       parsedCalzadoId
     ];
 
-    // Se cambió db.query por pool.query
     const result = await pool.query(query, values);
 
     if (result.rowCount === 0) {
