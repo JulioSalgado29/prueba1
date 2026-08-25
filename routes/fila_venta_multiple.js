@@ -32,8 +32,7 @@ router.get('/calzados/:id_inventario', async (req, res) => {
 });
 
 // 2. Consultar stock y opciones disponibles en cascada por Calzado
-// Petición: GET /api/fila_venta_multiple/stock-cascada/:id_calzado/:id_inventario?talla=...&colores=...&taco=...
-// GET /api/fila_venta_multiple/stock-cascada/:id_inventario?id_calzado=...&talla=...&colores=...&taco=...
+// GET /api/fila_venta_multiple/stock-cascada/:id_inventario
 router.get('/stock-cascada/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
     const { id_calzado, talla, colores, taco } = req.query;
@@ -44,11 +43,12 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
             return res.status(400).json({ error: 'El id_inventario es obligatorio y debe ser numérico.' });
         }
 
+        // 1. Condiciones iniciales (siempre filtrado por inventario)
         let whereConditions = ['fi.id_inventario = $1'];
         let queryParams = [idInventarioNum];
         let paramIndex = 2;
 
-        // Filtros opcionales dinámicos
+        // 2. Filtros dinámicos acumulativos
         if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
             whereConditions.push(`fi.id_calzado = $${paramIndex++}`);
             queryParams.push(parseInt(id_calzado, 10));
@@ -67,26 +67,29 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
         }
 
         const queryText = `
-            WITH base AS (
-                SELECT fi.id_calzado, si.*
+            WITH full_inventory AS (
+                -- Trae la totalidad de variantes registradas en este inventario
+                SELECT fi.id_calzado, si.talla, si.colores, si.taco, si.plataforma
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
                 WHERE fi.id_inventario = $1
             ),
-            filtered AS (
-                SELECT fi.id_calzado, si.*
+            filtered_inventory AS (
+                -- Aplica los filtros seleccionados por el usuario
+                SELECT fi.id_calzado, si.cantidad
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
                 WHERE ${whereConditions.join(' AND ')}
             )
             SELECT 
-                COALESCE((SELECT SUM(cantidad) FROM filtered), 0)::INT AS stock_total,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.id_calzado), NULL) AS calzados_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.talla), NULL) AS tallas_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.colores), NULL) AS colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.taco), NULL) AS tacos_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.plataforma), NULL) AS plataformas_disponibles
-            FROM base b;
+                COALESCE((SELECT SUM(cantidad) FROM filtered_inventory), 0)::INT AS stock_total,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT fi_sub.id_calzado), NULL) AS calzados_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.talla), NULL) AS tallas_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.colores), NULL) AS colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.taco), NULL) AS tacos_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.plataforma), NULL) AS plataformas_disponibles
+            FROM full_inventory full_inv
+            LEFT JOIN filtered_inventory fi_sub ON TRUE;
         `;
 
         const resultado = await pool.query(queryText, queryParams);
