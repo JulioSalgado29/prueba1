@@ -11,6 +11,7 @@ const tipoCalzadoRoutes = require('./routes/tipo_calzado');
 const calzadoRoutes = require('./routes/calzado');
 const filaInventarioRoutes = require('./routes/fila_inventario');
 const subfilaInventarioRoutes = require('./routes/subfila_inventario');
+const filaVentaRoutes = require('./routes/fila_venta');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +33,7 @@ app.use('/api/tipo_calzado', tipoCalzadoRoutes);
 app.use('/api/calzado', calzadoRoutes);
 app.use('/api/fila_inventario', filaInventarioRoutes);
 app.use('/api/subfila_inventario', subfilaInventarioRoutes);
+app.use('/api/fila_venta', filaVentaRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
