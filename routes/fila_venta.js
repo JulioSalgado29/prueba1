@@ -311,4 +311,203 @@ router.post('/', async (req, res) => {
     }
 });
 
+// 4. Editar una venta/muestra existente con reajuste atómico de stock
+// Petición: PUT /api/fila_venta/:id_fila_venta
+router.put('/:id_fila_venta', async (req, res) => {
+    const { id_fila_venta } = req.params;
+    const {
+        id_inventario,
+        id_calzado,
+        talla,
+        colores = '',
+        taco = 0,
+        plataforma = '',
+        cantidad,
+        precio_venta_total,
+        metodo_pago,
+        lugar_venta,
+        usuario_creacion,
+        email_user
+    } = req.body;
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // A. Obtener datos actuales de la venta a editar
+        const fvQuery = await client.query(
+            `SELECT * FROM fila_venta WHERE id_fila_venta = $1 FOR UPDATE`,
+            [id_fila_venta]
+        );
+
+        if (fvQuery.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Registro de venta no encontrado.' });
+        }
+
+        const ventaAntigua = fvQuery.rows[0];
+        const esMuestra = ventaAntigua.id_dueno_muestra !== null;
+
+        if (!esMuestra) {
+            // B. Revertir/Restaurar el stock de la variante antigua
+            let filaInvRes = await client.query(
+                `SELECT id_fila_inventario 
+                 FROM fila_inventario 
+                 WHERE id_calzado = $1 AND id_inventario = $2 
+                 LIMIT 1`,
+                [ventaAntigua.id_calzado, ventaAntigua.id_inventario]
+            );
+
+            let id_fila_inventario;
+
+            if (filaInvRes.rows.length === 0) {
+                const nuevaFilaRes = await client.query(
+                    `INSERT INTO fila_inventario 
+                       (id_calzado, id_inventario, cantidad, email_user, usuario_creacion)
+                     VALUES ($1, $2, $3, $4, $5)
+                     RETURNING id_fila_inventario`,
+                    [ventaAntigua.id_calzado, ventaAntigua.id_inventario, ventaAntigua.cantidad, email_user, usuario_creacion]
+                );
+                id_fila_inventario = nuevaFilaRes.rows[0].id_fila_inventario;
+            } else {
+                id_fila_inventario = filaInvRes.rows[0].id_fila_inventario;
+                await client.query(
+                    `UPDATE fila_inventario 
+                     SET cantidad = cantidad + $1 
+                     WHERE id_fila_inventario = $2`,
+                    [ventaAntigua.cantidad, id_fila_inventario]
+                );
+            }
+
+            const subfilaRes = await client.query(
+                `SELECT id_subfila_inventario 
+                 FROM subfila_inventario 
+                 WHERE id_fila_inventario = $1 
+                   AND talla = $2 
+                   AND colores = $3 
+                   AND taco = $4 
+                   AND plataforma = $5 
+                 LIMIT 1`,
+                [id_fila_inventario, ventaAntigua.talla, ventaAntigua.colores, ventaAntigua.taco, ventaAntigua.plataforma]
+            );
+
+            if (subfilaRes.rows.length > 0) {
+                await client.query(
+                    `UPDATE subfila_inventario 
+                     SET cantidad = cantidad + $1 
+                     WHERE id_subfila_inventario = $2`,
+                    [ventaAntigua.cantidad, subfilaRes.rows[0].id_subfila_inventario]
+                );
+            } else {
+                await client.query(
+                    `INSERT INTO subfila_inventario 
+                       (id_fila_inventario, talla, colores, taco, plataforma, cantidad, email_user, usuario_creacion)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                    [
+                        id_fila_inventario,
+                        ventaAntigua.talla,
+                        ventaAntigua.colores,
+                        ventaAntigua.taco,
+                        ventaAntigua.plataforma,
+                        ventaAntigua.cantidad,
+                        email_user,
+                        usuario_creacion
+                    ]
+                );
+            }
+
+            // C. Descontar el nuevo stock correspondiente a los datos actualizados
+            const subfilaNuevaRes = await client.query(
+                `UPDATE subfila_inventario
+                 SET cantidad = cantidad - $1
+                 WHERE id_fila_inventario IN (
+                     SELECT id_fila_inventario 
+                     FROM fila_inventario 
+                     WHERE id_calzado = $2 AND id_inventario = $3
+                 )
+                 AND talla = $4
+                 AND colores = $5
+                 AND taco = $6
+                 AND plataforma = $7
+                 AND cantidad >= $1
+                 RETURNING id_subfila_inventario, id_fila_inventario`,
+                [cantidad, id_calzado, id_inventario, talla, colores, taco, plataforma]
+            );
+
+            if (subfilaNuevaRes.rows.length === 0) {
+                throw new Error('Stock insuficiente o variante no encontrada para los nuevos datos.');
+            }
+
+            const id_fila_inv_padre = subfilaNuevaRes.rows[0].id_fila_inventario;
+            await client.query(
+                `UPDATE fila_inventario 
+                 SET cantidad = cantidad - $1 
+                 WHERE id_fila_inventario = $2`,
+                [cantidad, id_fila_inv_padre]
+            );
+        }
+
+        // D. Actualizar `venta` (tabla principal)
+        if (ventaAntigua.id_venta) {
+            await client.query(
+                `UPDATE venta SET
+                    id_calzado = $1,
+                    cantidad = $2,
+                    colores = $3,
+                    lugar_venta = $4,
+                    metodo_pago = $5,
+                    plataforma = $6,
+                    precio_venta_total = $7,
+                    taco = $8,
+                    talla = $9,
+                    usuario_creacion = $10
+                WHERE id_venta = $11`,
+                [
+                    id_calzado, cantidad, colores, lugar_venta,
+                    metodo_pago, plataforma, precio_venta_total, taco,
+                    talla, usuario_creacion, ventaAntigua.id_venta
+                ]
+            );
+        }
+
+        // E. Actualizar `fila_venta`
+        const filaVentaActualizada = await client.query(
+            `UPDATE fila_venta SET
+                id_inventario = $1,
+                id_calzado = $2,
+                cantidad = $3,
+                talla = $4,
+                colores = $5,
+                taco = $6,
+                plataforma = $7,
+                precio_venta_total = $8,
+                metodo_pago = $9,
+                lugar_venta = $10,
+                usuario_creacion = $11,
+                email_user = $12
+            WHERE id_fila_venta = $13
+            RETURNING *`,
+            [
+                id_inventario, id_calzado, cantidad, talla, colores,
+                taco, plataforma, precio_venta_total, metodo_pago,
+                lugar_venta, usuario_creacion, email_user, id_fila_venta
+            ]
+        );
+
+        await client.query('COMMIT');
+        res.json({
+            message: esMuestra ? 'Muestra actualizada con éxito.' : 'Venta actualizada y stock reajustado con éxito.',
+            fila_venta: filaVentaActualizada.rows[0]
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en PUT /api/fila_venta:', error.message);
+        res.status(400).json({ error: error.message || 'Error al actualizar la venta' });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;
