@@ -175,4 +175,118 @@ router.delete('/:id_fila_venta', async (req, res) => {
     }
 });
 
+// 3. Crear venta / muestra (Inserta en venta, fila_venta y descuenta stock)
+// Petición: POST /api/fila_venta
+router.post('/', async (req, res) => {
+    const {
+        id_inventario,
+        id_calzado,
+        talla,
+        taco = 0,
+        colores = '',
+        plataforma = '',
+        cantidad,
+        precio_venta_total,
+        metodo_pago,
+        lugar_venta,
+        fecha_venta,
+        usuario_creacion,
+        email_user,
+        muestra = false
+    } = req.body;
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // A. Insertar cabecera en tabla `venta`
+        const ventaRes = await client.query(
+            `INSERT INTO venta (
+                id_inventario, 
+                precio_venta_total, 
+                usuario_creacion, 
+                fecha_venta
+            ) VALUES ($1, $2, $3, $4) 
+            RETURNING id_venta`,
+            [id_inventario, precio_venta_total, usuario_creacion, fecha_venta || new Date()]
+        );
+
+        const id_venta = ventaRes.rows[0].id_venta;
+
+        // B. Insertar detalle en tabla `fila_venta`
+        const filaVentaRes = await client.query(
+            `INSERT INTO fila_venta (
+                id_venta,
+                id_inventario,
+                id_calzado,
+                cantidad,
+                talla,
+                colores,
+                taco,
+                plataforma,
+                precio_venta_total,
+                metodo_pago,
+                lugar_venta,
+                usuario_creacion,
+                email_user,
+                fecha_venta
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING *`,
+            [
+                id_venta,
+                id_inventario,
+                id_calzado,
+                cantidad,
+                talla,
+                colores,
+                taco,
+                plataforma,
+                precio_venta_total,
+                metodo_pago,
+                lugar_venta,
+                usuario_creacion,
+                email_user,
+                fecha_venta || new Date()
+            ]
+        );
+
+        // C. Si NO es muestra, descontar stock de la subfila_inventario
+        if (!muestra) {
+            const subfilaRes = await client.query(
+                `UPDATE subfila_inventario
+                 SET cantidad = cantidad - $1
+                 WHERE id_fila_inventario IN (
+                     SELECT id_fila_inventario 
+                     FROM fila_inventario 
+                     WHERE id_calzado = $2 AND id_inventario = $3
+                 )
+                 AND talla = $4
+                 AND colores = $5
+                 AND taco = $6
+                 AND plataforma = $7
+                 RETURNING id_subfila_inventario`,
+                [cantidad, id_calzado, id_inventario, talla, colores, taco, plataforma]
+            );
+
+            if (subfilaRes.rows.length === 0) {
+                throw new Error('No se encontró el stock de la variante seleccionada para descontar.');
+            }
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({
+            message: muestra ? 'Muestra registrada con éxito.' : 'Venta registrada y stock actualizado.',
+            fila_venta: filaVentaRes.rows[0]
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error en POST /api/fila_venta:', error.message);
+        res.status(500).json({ error: error.message || 'Error interno del servidor' });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;
