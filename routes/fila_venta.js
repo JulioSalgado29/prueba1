@@ -35,7 +35,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       INNER JOIN calzado c ON c.id_calzado = fv.id_calzado
       LEFT JOIN dueno_muestra dm 
         ON dm.id_inventario = fv.id_inventario 
-       AND dm.email_usuario = fv.email_user
+       AND dm.id_dueno_muestra = fv.id_dueno_muestra
       WHERE fv.id_inventario = $1
     `;
 
