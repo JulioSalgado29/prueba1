@@ -38,40 +38,53 @@ router.get('/stock-cascada/:id_calzado/:id_inventario', async (req, res) => {
     const { talla, colores, taco } = req.query;
 
     try {
-        let whereConditions = [
-            'fi.id_calzado = $1',
-            'fi.id_inventario = $2'
+        const queryParams = [
+            parseInt(id_calzado, 10), 
+            parseInt(id_inventario, 10)
         ];
-        let queryParams = [parseInt(id_calzado), parseInt(id_inventario)];
+
+        // Construimos condiciones dinámicas para calcular solo el stock filtrado
+        let stockWhere = ['fi.id_calzado = $1', 'fi.id_inventario = $2'];
+        let stockParams = [...queryParams];
         let paramIndex = 3;
 
-        if (talla) {
-            whereConditions.push(`si.talla = $${paramIndex++}`);
-            queryParams.push(parseInt(talla));
+        if (talla && !isNaN(parseInt(talla, 10))) {
+            stockWhere.push(`si.talla = $${paramIndex++}`);
+            stockParams.push(parseInt(talla, 10));
         }
-        if (colores) {
-            whereConditions.push(`si.colores = $${paramIndex++}`);
-            queryParams.push(colores);
+        if (colores && colores !== '') {
+            stockWhere.push(`si.colores = $${paramIndex++}`);
+            stockParams.push(colores);
         }
-        if (taco) {
-            whereConditions.push(`si.taco = $${paramIndex++}`);
-            queryParams.push(parseInt(taco));
+        if (taco && !isNaN(parseInt(taco, 10))) {
+            stockWhere.push(`si.taco = $${paramIndex++}`);
+            stockParams.push(parseInt(taco, 10));
         }
 
         const queryText = `
+            WITH base AS (
+                SELECT si.*
+                FROM fila_inventario fi
+                INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
+                WHERE fi.id_calzado = $1 AND fi.id_inventario = $2
+            ),
+            filtered_stock AS (
+                SELECT COALESCE(SUM(si.cantidad), 0)::INT AS stock_total
+                FROM fila_inventario fi
+                INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
+                WHERE ${stockWhere.join(' AND ')}
+            )
             SELECT 
-                COALESCE(SUM(si.cantidad), 0)::INT AS stock_total,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT si.talla), NULL) AS tallas_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT si.colores), NULL) AS colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT si.taco), NULL) AS tacos_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT si.plataforma), NULL) AS plataformas_disponibles
-            FROM fila_inventario fi
-            INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-            WHERE ${whereConditions.join(' AND ')}
+                (SELECT stock_total FROM filtered_stock) AS stock_total,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.talla), NULL) AS tallas_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.colores), NULL) AS colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.taco), NULL) AS tacos_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.plataforma), NULL) AS plataformas_disponibles
+            FROM base b;
         `;
 
-        const resultado = await pool.query(queryText, queryParams);
-        const data = resultado.rows[0];
+        const resultado = await pool.query(queryText, stockParams);
+        const data = resultado.rows[0] || {};
 
         res.json({
             stock_disponible: data.stock_total || 0,
@@ -82,7 +95,7 @@ router.get('/stock-cascada/:id_calzado/:id_inventario', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error en GET /api/fila_venta_multiple/stock-cascada:', error.message);
+        console.error('Error en GET /stock-cascada:', error);
         res.status(500).json({ error: 'Error al consultar el stock en cascada.' });
     }
 });
