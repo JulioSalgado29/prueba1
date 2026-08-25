@@ -27,10 +27,8 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         fv.email_user,
         fv.fecha_creacion,
         fv.fecha_venta,
-        -- Datos del Calzado (INNER JOIN obligatorio)
         c.nombre AS calzado_nombre,
         c.icono AS calzado_icono,
-        -- Datos de Dueño de Muestra (LEFT JOIN por inventario/usuario si aplica)
         dm.id_dueno_muestra,
         dm.nombre AS dueno_muestra_nombre
       FROM fila_venta fv
@@ -72,6 +70,7 @@ router.delete('/:id_fila_venta', async (req, res) => {
         if (!esMuestra) {
             const {
                 id_calzado,
+                id_dueno_muestra,
                 id_inventario,
                 cantidad,
                 talla,
@@ -238,6 +237,7 @@ router.post('/', async (req, res) => {
             `INSERT INTO fila_venta (
                 id_venta,
                 id_inventario,
+                id_dueno_muestra,
                 id_calzado,
                 cantidad,
                 talla,
@@ -250,11 +250,12 @@ router.post('/', async (req, res) => {
                 usuario_creacion,
                 email_user,
                 fecha_venta
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *`,
             [
                 id_venta,
                 id_inventario,
+                id_dueno_muestra,
                 id_calzado,
                 cantidad,
                 talla,
