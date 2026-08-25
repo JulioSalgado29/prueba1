@@ -42,7 +42,8 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         const queryParams = [id_inventario];
 
         if (fecha) {
-            queryText += ` AND DATE(fv.fecha_creacion) = $2`;
+            // Evaluamos contra fecha_venta usando la zona horaria local (America/Lima)
+            queryText += ` AND DATE(fv.fecha_venta AT TIME ZONE 'America/Lima') = $2`;
             queryParams.push(fecha);
         }
 
