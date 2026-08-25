@@ -12,7 +12,7 @@ const calzadoRoutes = require('./routes/calzado');
 const filaInventarioRoutes = require('./routes/fila_inventario');
 const subfilaInventarioRoutes = require('./routes/subfila_inventario');
 const filaVentaRoutes = require('./routes/fila_venta');
-const filaVentaMultiplesRoutes = require('./routes/fila_venta_multiples');
+const filaVentaMultiplesRoutes = require('./routes/fila_venta_multiple');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
