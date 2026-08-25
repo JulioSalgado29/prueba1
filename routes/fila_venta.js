@@ -71,7 +71,6 @@ router.delete('/:id_fila_venta', async (req, res) => {
         if (!esMuestra) {
             const {
                 id_calzado,
-                id_dueno_muestra,
                 id_inventario,
                 cantidad,
                 talla,
@@ -181,6 +180,7 @@ router.post('/', async (req, res) => {
     const {
         id_inventario,
         id_calzado,
+        id_dueno_muestra,
         talla,
         taco = 0,
         colores = '',
