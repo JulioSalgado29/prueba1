@@ -33,55 +33,55 @@ router.get('/calzados/:id_inventario', async (req, res) => {
 
 // 2. Consultar stock y opciones disponibles en cascada por Calzado
 // Petición: GET /api/fila_venta_multiple/stock-cascada/:id_calzado/:id_inventario?talla=...&colores=...&taco=...
-router.get('/stock-cascada/:id_calzado/:id_inventario', async (req, res) => {
-    const { id_calzado, id_inventario } = req.params;
-    const { talla, colores, taco } = req.query;
+// GET /api/fila_venta_multiple/stock-cascada/:id_inventario?id_calzado=...&talla=...&colores=...&taco=...
+router.get('/stock-cascada/:id_inventario', async (req, res) => {
+    const { id_inventario } = req.params;
+    const { id_calzado, talla, colores, taco } = req.query;
 
     try {
-        const idCalzadoNum = parseInt(id_calzado, 10);
         const idInventarioNum = parseInt(id_inventario, 10);
-
-        if (isNaN(idCalzadoNum) || isNaN(idInventarioNum)) {
-            return res.status(400).json({ error: 'IDs de calzado o inventario inválidos.' });
+        if (isNaN(idInventarioNum)) {
+            return res.status(400).json({ error: 'El id_inventario es obligatorio y debe ser numérico.' });
         }
 
-        let baseWhere = ['fi.id_calzado = $1', 'fi.id_inventario = $2'];
-        let baseParams = [idCalzadoNum, idInventarioNum];
-        let paramIndex = 3;
+        let whereConditions = ['fi.id_inventario = $1'];
+        let queryParams = [idInventarioNum];
+        let paramIndex = 2;
 
-        // Filtros opcionales para calcular el stock específico
-        let stockConditions = [];
+        // Filtros opcionales dinámicos
+        if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
+            whereConditions.push(`fi.id_calzado = $${paramIndex++}`);
+            queryParams.push(parseInt(id_calzado, 10));
+        }
         if (talla && !isNaN(parseInt(talla, 10))) {
-            stockConditions.push(`si.talla = $${paramIndex++}`);
-            baseParams.push(parseInt(talla, 10));
+            whereConditions.push(`si.talla = $${paramIndex++}`);
+            queryParams.push(parseInt(talla, 10));
         }
         if (colores && colores.trim() !== '') {
-            stockConditions.push(`si.colores = $${paramIndex++}`);
-            baseParams.push(colores.trim());
+            whereConditions.push(`si.colores = $${paramIndex++}`);
+            queryParams.push(colores.trim());
         }
         if (taco && !isNaN(parseInt(taco, 10))) {
-            stockConditions.push(`si.taco = $${paramIndex++}`);
-            baseParams.push(parseInt(taco, 10));
+            whereConditions.push(`si.taco = $${paramIndex++}`);
+            queryParams.push(parseInt(taco, 10));
         }
-
-        const stockFilterClause = stockConditions.length > 0 
-            ? 'AND ' + stockConditions.join(' AND ') 
-            : '';
 
         const queryText = `
             WITH base AS (
-                SELECT si.*
+                SELECT fi.id_calzado, si.*
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                WHERE fi.id_calzado = $1 AND fi.id_inventario = $2
+                WHERE fi.id_inventario = $1
+            ),
+            filtered AS (
+                SELECT fi.id_calzado, si.*
+                FROM fila_inventario fi
+                INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
+                WHERE ${whereConditions.join(' AND ')}
             )
             SELECT 
-                COALESCE((
-                    SELECT SUM(si.cantidad)
-                    FROM fila_inventario fi
-                    INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                    WHERE fi.id_calzado = $1 AND fi.id_inventario = $2 ${stockFilterClause}
-                ), 0)::INT AS stock_total,
+                COALESCE((SELECT SUM(cantidad) FROM filtered), 0)::INT AS stock_total,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.id_calzado), NULL) AS calzados_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.talla), NULL) AS tallas_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.colores), NULL) AS colores_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.taco), NULL) AS tacos_disponibles,
@@ -89,11 +89,12 @@ router.get('/stock-cascada/:id_calzado/:id_inventario', async (req, res) => {
             FROM base b;
         `;
 
-        const resultado = await pool.query(queryText, baseParams);
+        const resultado = await pool.query(queryText, queryParams);
         const data = resultado.rows[0] || {};
 
         res.json({
             stock_disponible: data.stock_total || 0,
+            calzados_disponibles: data.calzados_disponibles || [],
             tallas_disponibles: data.tallas_disponibles || [],
             colores_disponibles: data.colores_disponibles || [],
             tacos_disponibles: data.tacos_disponibles || [],
