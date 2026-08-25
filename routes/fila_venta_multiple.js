@@ -44,68 +44,47 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
         }
 
         // -------------------------------------------------------------
-        // 1. Filtro para FULL_INVENTORY (Atributos disponibles)
-        // Restringe las tallas/colores si ya se eligió un calzado específico.
+        // Filtros acumulativos para FULL_INVENTORY (Atributos disponibles dinámicos)
         // -------------------------------------------------------------
         let fullWhere = ['fi.id_inventario = $1'];
-        let fullParams = [idInventarioNum];
-        
-        if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
-            fullWhere.push('fi.id_calzado = $2');
-            fullParams.push(parseInt(id_calzado, 10));
-        }
-
-        // -------------------------------------------------------------
-        // 2. Filtros dinámicos acumulativos para FILTERED_INVENTORY (Stock real)
-        // -------------------------------------------------------------
-        let whereConditions = ['fi.id_inventario = $1'];
         let queryParams = [idInventarioNum];
         let paramIndex = 2;
 
         if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
-            whereConditions.push(`fi.id_calzado = $${paramIndex++}`);
+            fullWhere.push(`fi.id_calzado = $${paramIndex++}`);
             queryParams.push(parseInt(id_calzado, 10));
         }
         if (talla && !isNaN(parseInt(talla, 10))) {
-            whereConditions.push(`si.talla = $${paramIndex++}`);
+            fullWhere.push(`si.talla = $${paramIndex++}`);
             queryParams.push(parseInt(talla, 10));
         }
         if (colores && colores.trim() !== '') {
-            whereConditions.push(`si.colores = $${paramIndex++}`);
+            fullWhere.push(`si.colores = $${paramIndex++}`);
             queryParams.push(colores.trim());
         }
         if (taco && !isNaN(parseInt(taco, 10))) {
-            whereConditions.push(`si.taco = $${paramIndex++}`);
+            fullWhere.push(`si.taco = $${paramIndex++}`);
             queryParams.push(parseInt(taco, 10));
         }
 
         const queryText = `
             WITH full_inventory AS (
-                -- Muestra tallas, colores, tacos disponibles considerando el calzado si ya fue seleccionado
-                SELECT fi.id_calzado, si.talla, si.colores, si.taco, si.plataforma
+                -- Trae los atributos filtrados progresivamente según los parámetros recibidos
+                SELECT fi.id_calzado, si.talla, si.colores, si.taco, si.plataforma, si.cantidad
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
                 WHERE ${fullWhere.join(' AND ')}
-            ),
-            filtered_inventory AS (
-                -- Aplica todos los filtros (calzado, talla, color, etc.) para calcular stock final
-                SELECT fi.id_calzado, si.cantidad
-                FROM fila_inventario fi
-                INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                WHERE ${whereConditions.join(' AND ')}
             )
             SELECT 
-                COALESCE((SELECT SUM(cantidad) FROM filtered_inventory), 0)::INT AS stock_total,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT fi_sub.id_calzado), NULL) AS calzados_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.talla), NULL) AS tallas_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.colores), NULL) AS colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.taco), NULL) AS tacos_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT full_inv.plataforma), NULL) AS plataformas_disponibles
-            FROM full_inventory full_inv
-            LEFT JOIN filtered_inventory fi_sub ON TRUE;
+                COALESCE(SUM(cantidad), 0)::INT AS stock_total,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT id_calzado), NULL) AS calzados_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT talla), NULL) AS tallas_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT colores), NULL) AS colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT taco), NULL) AS tacos_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT plataforma), NULL) AS plataformas_disponibles
+            FROM full_inventory;
         `;
 
-        // Nota: Pasamos queryParams (que incluye los parámetros completos de filtered_inventory)
         const resultado = await pool.query(queryText, queryParams);
         const data = resultado.rows[0] || {};
 
