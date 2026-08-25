@@ -43,12 +43,25 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
             return res.status(400).json({ error: 'El id_inventario es obligatorio y debe ser numérico.' });
         }
 
-        // 1. Condiciones iniciales (siempre filtrado por inventario)
+        // -------------------------------------------------------------
+        // 1. Filtro para FULL_INVENTORY (Atributos disponibles)
+        // Restringe las tallas/colores si ya se eligió un calzado específico.
+        // -------------------------------------------------------------
+        let fullWhere = ['fi.id_inventario = $1'];
+        let fullParams = [idInventarioNum];
+        
+        if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
+            fullWhere.push('fi.id_calzado = $2');
+            fullParams.push(parseInt(id_calzado, 10));
+        }
+
+        // -------------------------------------------------------------
+        // 2. Filtros dinámicos acumulativos para FILTERED_INVENTORY (Stock real)
+        // -------------------------------------------------------------
         let whereConditions = ['fi.id_inventario = $1'];
         let queryParams = [idInventarioNum];
         let paramIndex = 2;
 
-        // 2. Filtros dinámicos acumulativos
         if (id_calzado && !isNaN(parseInt(id_calzado, 10))) {
             whereConditions.push(`fi.id_calzado = $${paramIndex++}`);
             queryParams.push(parseInt(id_calzado, 10));
@@ -68,14 +81,14 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
 
         const queryText = `
             WITH full_inventory AS (
-                -- Trae la totalidad de variantes registradas en este inventario
+                -- Muestra tallas, colores, tacos disponibles considerando el calzado si ya fue seleccionado
                 SELECT fi.id_calzado, si.talla, si.colores, si.taco, si.plataforma
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                WHERE fi.id_inventario = $1
+                WHERE ${fullWhere.join(' AND ')}
             ),
             filtered_inventory AS (
-                -- Aplica los filtros seleccionados por el usuario
+                -- Aplica todos los filtros (calzado, talla, color, etc.) para calcular stock final
                 SELECT fi.id_calzado, si.cantidad
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
@@ -92,6 +105,7 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
             LEFT JOIN filtered_inventory fi_sub ON TRUE;
         `;
 
+        // Nota: Pasamos queryParams (que incluye los parámetros completos de filtered_inventory)
         const resultado = await pool.query(queryText, queryParams);
         const data = resultado.rows[0] || {};
 
