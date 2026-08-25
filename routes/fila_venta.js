@@ -200,21 +200,40 @@ router.post('/', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // A. Insertar cabecera en tabla `venta`
+        // A. Insertar en tabla `venta` (incluye todos sus campos NOT NULL)
         const ventaRes = await client.query(
             `INSERT INTO venta (
-                id_inventario, 
-                precio_venta_total, 
-                usuario_creacion, 
-                fecha_venta
-            ) VALUES ($1, $2, $3, $4) 
+                id_calzado,
+                cantidad,
+                colores,
+                fecha_venta,
+                lugar_venta,
+                metodo_pago,
+                plataforma,
+                precio_venta_total,
+                taco,
+                talla,
+                usuario_creacion
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
             RETURNING id_venta`,
-            [id_inventario, precio_venta_total, usuario_creacion, fecha_venta || new Date()]
+            [
+                id_calzado,
+                cantidad,
+                colores,
+                fecha_venta || new Date(),
+                lugar_venta,
+                metodo_pago,
+                plataforma,
+                precio_venta_total,
+                taco,
+                talla,
+                usuario_creacion
+            ]
         );
 
         const id_venta = ventaRes.rows[0].id_venta;
 
-        // B. Insertar detalle en tabla `fila_venta`
+        // B. Insertar en tabla `fila_venta`
         const filaVentaRes = await client.query(
             `INSERT INTO fila_venta (
                 id_venta,
@@ -251,7 +270,7 @@ router.post('/', async (req, res) => {
             ]
         );
 
-        // C. Si NO es muestra, descontar stock de la subfila_inventario
+        // C. Si NO es muestra, descontar stock de `subfila_inventario`
         if (!muestra) {
             const subfilaRes = await client.query(
                 `UPDATE subfila_inventario
