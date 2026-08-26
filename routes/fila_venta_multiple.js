@@ -67,9 +67,9 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
             queryParams.push(parseInt(taco, 10));
         }
         // 2. Agregamos la condición para plataforma
-        if (plataforma && !isNaN(parseInt(plataforma, 10))) {
+        if (plataforma && plataforma.trim() !== '') {
             fullWhere.push(`si.plataforma = $${paramIndex++}`);
-            queryParams.push(parseInt(plataforma, 10));
+            queryParams.push(plataforma.trim());
         }
 
         const queryText = `
