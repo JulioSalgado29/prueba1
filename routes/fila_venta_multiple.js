@@ -35,7 +35,7 @@ router.get('/calzados/:id_inventario', async (req, res) => {
 // GET /api/fila_venta_multiple/stock-cascada/:id_inventario
 router.get('/stock-cascada/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
-    const { id_calzado, talla, colores, taco } = req.query;
+    const { id_calzado, talla, colores, taco, plataforma } = req.query;
 
     try {
         const idInventarioNum = parseInt(id_inventario, 10);
@@ -65,6 +65,11 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
         if (taco && !isNaN(parseInt(taco, 10))) {
             fullWhere.push(`si.taco = $${paramIndex++}`);
             queryParams.push(parseInt(taco, 10));
+        }
+        // 2. Agregamos la condición para plataforma
+        if (plataforma && !isNaN(parseInt(plataforma, 10))) {
+            fullWhere.push(`si.plataforma = $${paramIndex++}`);
+            queryParams.push(parseInt(plataforma, 10));
         }
 
         const queryText = `
