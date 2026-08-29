@@ -216,18 +216,18 @@ router.post('/batch', async (req, res) => {
             // C. Descontar stock de `subfila_inventario`
             const subfilaRes = await client.query(
                 `UPDATE subfila_inventario
-                SET cantidad = cantidad - $1
-                WHERE id_fila_inventario IN (
-                    SELECT id_fila_inventario 
-                    FROM fila_inventario 
-                    WHERE id_calzado = $2 AND id_inventario = $3
-                )
-                AND talla = $4
-                AND colores = $5
-                AND taco = $6
-                AND plataforma = $7
-                AND cantidad >= $1
-                RETURNING id_subfila_inventario, id_fila_inventario`,
+SET cantidad = cantidad - $1
+WHERE id_fila_inventario IN (
+    SELECT id_fila_inventario 
+    FROM fila_inventario 
+    WHERE id_calzado = $2 AND id_inventario = $3
+)
+AND talla = $4
+AND colores IS NOT DISTINCT FROM $5
+AND taco IS NOT DISTINCT FROM $6
+AND plataforma IS NOT DISTINCT FROM $7
+AND cantidad >= $1
+RETURNING id_subfila_inventario, id_fila_inventario;`,
                 [cantidad, id_calzado, id_inventario, talla, colores, taco, plataforma]
             );
 
