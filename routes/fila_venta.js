@@ -42,8 +42,8 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         const queryParams = [id_inventario];
 
         if (fecha) {
-    // Filtro por comparación directa de fecha (día) en UTC
-    queryText += ` AND (fv.fecha_venta AT TIME ZONE 'UTC')::date = $2::date`;
+    // Convierte fecha_venta a hora Perú (UTC-5) y compara solo el día
+    queryText += ` AND (fv.fecha_venta - INTERVAL '5 hours')::date = $2::date`;
     queryParams.push(fecha);
 }
 
