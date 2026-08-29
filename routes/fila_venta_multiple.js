@@ -223,9 +223,9 @@ router.post('/batch', async (req, res) => {
                     WHERE id_calzado = $2 AND id_inventario = $3
                 )
                 AND talla = $4
-                AND colores = COALESCE(NULLIF($5, ''), '0')
+                AND colores = $5
                 AND taco = $6
-                AND plataforma = COALESCE(NULLIF($7, ''), '0')
+                AND plataforma = $7
                 AND cantidad >= $1
                 RETURNING id_subfila_inventario, id_fila_inventario`,
                 [cantidad, id_calzado, id_inventario, talla, colores, taco, plataforma]
