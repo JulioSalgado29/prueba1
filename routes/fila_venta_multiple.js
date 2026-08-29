@@ -224,7 +224,7 @@ router.post('/batch', async (req, res) => {
                 )
                 AND talla = $4
                 AND colores = COALESCE(NULLIF($5, ''), '0')
-                AND taco = COALESCE(NULLIF($6, ''), '0')
+                AND taco = $6
                 AND plataforma = COALESCE(NULLIF($7, ''), '0')
                 AND cantidad >= $1
                 RETURNING id_subfila_inventario, id_fila_inventario`,
