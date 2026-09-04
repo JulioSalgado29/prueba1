@@ -35,6 +35,39 @@ router.get('/inventario/:id_inventario', async (req, res) => {
     }
 });
 
+// 1.1 Listar calzados activos por inventario
+// Petición: GET /api/calzado/inventario/:id_inventario
+router.get('/inventario/update/:id_inventario', async (req, res) => {
+    const { id_inventario } = req.params;
+    try {
+        const resultado = await pool.query(
+            `SELECT 
+        id_calzado,
+        nombre,
+        icono,
+        precio_real,
+        taco,
+        plataforma,
+        colores,
+        id_tipo_calzado,
+        usuario_creacion,
+        email_usuario,
+        activo,
+        fecha_creacion,
+        id_inventario
+      FROM calzado
+      WHERE activo = true AND 
+            id_inventario = $1 or id_inventario=0
+      ORDER BY fecha_creacion DESC`,
+            [id_inventario]
+        );
+        res.json(resultado.rows);
+    } catch (error) {
+        console.error('Error en GET /api/calzado/inventario:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
 // 2. Listar calzados activos por inventario QUE TENGAN COLORES EN TRUE
 // Petición: GET /api/calzado/inventario/:id_inventario/colores
 router.get('/inventario/:id_inventario/colores', async (req, res) => {
