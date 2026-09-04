@@ -27,6 +27,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         fv.email_user,
         fv.fecha_creacion,
         fv.fecha_venta,
+        fv.descripcion_muestra,
         c.nombre AS calzado_nombre,
         c.icono AS calzado_icono,
         dm.id_dueno_muestra,
@@ -201,88 +202,88 @@ router.post('/', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // A. Insertar en tabla `venta` (incluye todos sus campos NOT NULL y condiciona descripcion_muestra)
-        const columns = [
-            'id_calzado',
-            'cantidad',
-            'colores',
-            'fecha_venta',
-            'lugar_venta',
-            'metodo_pago',
-            'plataforma',
-            'precio_venta_total',
-            'taco',
-            'talla',
-            'usuario_creacion'
-        ];
-
-        const values = [
-            id_calzado,
-            cantidad,
-            colores,
-            fecha_venta || new Date(),
-            lugar_venta,
-            metodo_pago,
-            plataforma,
-            precio_venta_total,
-            taco,
-            talla,
-            usuario_creacion
-        ];
-
-        if (descripcion_muestra !== null && descripcion_muestra !== undefined) {
-            columns.push('descripcion_muestra');
-            values.push(descripcion_muestra);
-        }
-
-        const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
-
+        // A. Insertar en tabla `venta`
         const ventaRes = await client.query(
-            `INSERT INTO venta (${columns.join(', ')})
-             VALUES (${placeholders})
-             RETURNING id_venta`,
-            values
+            `INSERT INTO venta (
+                id_calzado,
+                cantidad,
+                colores,
+                fecha_venta,
+                lugar_venta,
+                metodo_pago,
+                plataforma,
+                precio_venta_total,
+                taco,
+                talla,
+                usuario_creacion
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+            RETURNING id_venta`,
+            [
+                id_calzado,
+                cantidad,
+                colores,
+                fecha_venta || new Date(),
+                lugar_venta,
+                metodo_pago,
+                plataforma,
+                precio_venta_total,
+                taco,
+                talla,
+                usuario_creacion
+            ]
         );
 
         const id_venta = ventaRes.rows[0].id_venta;
 
-        // B. Insertar en tabla `fila_venta`
+        // B. Insertar en tabla `fila_venta` (condiciona descripcion_muestra)
+        const columnsFila = [
+            'id_venta',
+            'id_inventario',
+            'id_dueno_muestra',
+            'id_calzado',
+            'cantidad',
+            'talla',
+            'colores',
+            'taco',
+            'plataforma',
+            'precio_venta_total',
+            'metodo_pago',
+            'lugar_venta',
+            'usuario_creacion',
+            'email_user',
+            'fecha_venta'
+        ];
+
+        const valuesFila = [
+            id_venta,
+            id_inventario,
+            id_dueno_muestra,
+            id_calzado,
+            cantidad,
+            talla,
+            colores,
+            taco,
+            plataforma,
+            precio_venta_total,
+            metodo_pago,
+            lugar_venta,
+            usuario_creacion,
+            email_user,
+            fecha_venta || new Date()
+        ];
+
+        if (descripcion_muestra !== null && descripcion_muestra !== undefined) {
+            columnsFila.push('descripcion_muestra');
+            valuesFila.push(descripcion_muestra);
+        }
+
+        const placeholdersFila = valuesFila.map((_, index) => `$${index + 1}`).join(', ');
+
         const filaVentaRes = await client.query(
-            `INSERT INTO fila_venta (
-                id_venta,
-                id_inventario,
-                id_dueno_muestra,
-                id_calzado,
-                cantidad,
-                talla,
-                colores,
-                taco,
-                plataforma,
-                precio_venta_total,
-                metodo_pago,
-                lugar_venta,
-                usuario_creacion,
-                email_user,
-                fecha_venta
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-            RETURNING *`,
-            [
-                id_venta,
-                id_inventario,
-                id_dueno_muestra,
-                id_calzado,
-                cantidad,
-                talla,
-                colores,
-                taco,
-                plataforma,
-                precio_venta_total,
-                metodo_pago,
-                lugar_venta,
-                usuario_creacion,
-                email_user,
-                fecha_venta || new Date()
-            ]
+            `INSERT INTO fila_venta (${columnsFila.join(', ')})
+             VALUES (${placeholdersFila})
+             RETURNING *`,
+            valuesFila
         );
 
         // C. Si NO es muestra, descontar stock de `subfila_inventario`
