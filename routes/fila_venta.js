@@ -42,10 +42,10 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         const queryParams = [id_inventario];
 
         if (fecha) {
-    // Convierte fecha_venta a hora Perú (UTC-5) y compara solo el día
-    queryText += ` AND (fv.fecha_venta - INTERVAL '5 hours')::date = $2::date`;
-    queryParams.push(fecha);
-}
+            // Convierte fecha_venta a hora Perú (UTC-5) y compara solo el día
+            queryText += ` AND (fv.fecha_venta - INTERVAL '5 hours')::date = $2::date`;
+            queryParams.push(fecha);
+        }
 
         queryText += ` ORDER BY fv.fecha_creacion DESC`;
 
@@ -181,10 +181,11 @@ router.post('/', async (req, res) => {
         id_inventario,
         id_calzado,
         id_dueno_muestra,
+        descripcion_muestra,
         talla,
         taco = 0,
-        colores = '',
-        plataforma = '',
+        colores = "0",
+        plataforma = "0",
         cantidad,
         precio_venta_total,
         metodo_pago,
@@ -200,35 +201,47 @@ router.post('/', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // A. Insertar en tabla `venta` (incluye todos sus campos NOT NULL)
+        // A. Insertar en tabla `venta` (incluye todos sus campos NOT NULL y condiciona descripcion_muestra)
+        const columns = [
+            'id_calzado',
+            'cantidad',
+            'colores',
+            'fecha_venta',
+            'lugar_venta',
+            'metodo_pago',
+            'plataforma',
+            'precio_venta_total',
+            'taco',
+            'talla',
+            'usuario_creacion'
+        ];
+
+        const values = [
+            id_calzado,
+            cantidad,
+            colores,
+            fecha_venta || new Date(),
+            lugar_venta,
+            metodo_pago,
+            plataforma,
+            precio_venta_total,
+            taco,
+            talla,
+            usuario_creacion
+        ];
+
+        if (descripcion_muestra !== null && descripcion_muestra !== undefined) {
+            columns.push('descripcion_muestra');
+            values.push(descripcion_muestra);
+        }
+
+        const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
+
         const ventaRes = await client.query(
-            `INSERT INTO venta (
-                id_calzado,
-                cantidad,
-                colores,
-                fecha_venta,
-                lugar_venta,
-                metodo_pago,
-                plataforma,
-                precio_venta_total,
-                taco,
-                talla,
-                usuario_creacion
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-            RETURNING id_venta`,
-            [
-                id_calzado,
-                cantidad,
-                colores,
-                fecha_venta || new Date(),
-                lugar_venta,
-                metodo_pago,
-                plataforma,
-                precio_venta_total,
-                taco,
-                talla,
-                usuario_creacion
-            ]
+            `INSERT INTO venta (${columns.join(', ')})
+             VALUES (${placeholders})
+             RETURNING id_venta`,
+            values
         );
 
         const id_venta = ventaRes.rows[0].id_venta;
