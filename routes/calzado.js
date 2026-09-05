@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
@@ -11,6 +11,17 @@ const s3Client = new S3Client({
   region: REGION,
   useAccelerateEndpoint: true, // ⚡ Activa el endpoint de velocidad optimizada
 });
+
+// Helper para extraer la Key exacta de S3 desde una URL pública
+function obtenerS3KeyDesdeUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    // decodeURIComponent convierte caracteres codificados (%20) a texto plano
+    return decodeURIComponent(parsedUrl.pathname.substring(1));
+  } catch (e) {
+    return null;
+  }
+}
 
 // =================================================================
 // 📸 ENDPOINT: Generar Presigned URL para subida a S3
@@ -292,16 +303,55 @@ router.put('/:id', async (req, res) => {
       id_tipo_calzado,
       usuario_creacion,
       email_usuario,
-      imagenes // <-- Recibimos la lista de URLs como List<String>
+      imagenes // <-- Recibimos la lista actualizada de URLs
     } = req.body;
 
     // Conversión e higienización segura de tipos
     const parsedCalzadoId = parseInt(id, 10);
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
-    const parsedImagenes = Array.isArray(imagenes) ? imagenes : null;
+    const parsedImagenes = Array.isArray(imagenes) ? imagenes : [];
 
-    const query = `
+    // 1. Obtener imágenes almacenadas previamente en la base de datos
+    const selectQuery = `SELECT imagenes FROM calzado WHERE id_calzado = $1;`;
+    const selectResult = await pool.query(selectQuery, [parsedCalzadoId]);
+
+    if (selectResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Calzado no encontrado' });
+    }
+
+    const imagenesAnteriores = selectResult.rows[0].imagenes || [];
+
+    // 2. Filtrar imágenes que estaban guardadas pero ya no se enviaron en la actualización
+    const imagenesAEliminar = imagenesAnteriores.filter(
+      (urlAntigua) => !parsedImagenes.includes(urlAntigua)
+    );
+
+    // 3. Eliminar los objetos descartados de S3
+    if (imagenesAEliminar.length > 0) {
+      const keysToDelete = imagenesAEliminar
+        .map(obtenerS3KeyDesdeUrl)
+        .filter((key) => key !== null)
+        .map((key) => ({ Key: key }));
+
+      if (keysToDelete.length > 0) {
+        const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
+
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: targetBucket,
+          Delete: {
+            Objects: keysToDelete,
+            Quiet: true,
+          },
+        });
+
+        await s3Client.send(deleteCommand);
+        console.log(`🗑️ Se eliminaron ${keysToDelete.length} imagen(es) antiguas de S3.`);
+      }
+    }
+
+    // 4. Actualizar la BD con la nueva lista de imágenes
+    const updateQuery = `
       UPDATE calzado SET
         nombre = $1,
         icono = $2,
@@ -312,7 +362,7 @@ router.put('/:id', async (req, res) => {
         id_tipo_calzado = $7,
         usuario_creacion = $8,
         email_usuario = $9,
-        imagenes = COALESCE($10, imagenes)
+        imagenes = $10
       WHERE id_calzado = $11;
     `;
 
@@ -330,13 +380,9 @@ router.put('/:id', async (req, res) => {
       parsedCalzadoId
     ];
 
-    const result = await pool.query(query, values);
+    await pool.query(updateQuery, values);
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Calzado no encontrado' });
-    }
-
-    return res.status(200).json({ message: 'Calzado actualizado correctamente' });
+    return res.status(200).json({ message: 'Calzado e imágenes actualizados correctamente' });
   } catch (error) {
     console.error('Error detallado al actualizar calzado:', error.message);
     return res.status(500).json({ 
