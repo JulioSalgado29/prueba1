@@ -5,13 +5,9 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
-// Importar dotenv directamente aquí por seguridad si PM2 no lo cargó en el entrypoint
-require('dotenv').config();
-
-// Configurar cliente (la región la toma del .env o us-east-1)
-const s3Client = new S3Client({ 
-  region: process.env.AWS_REGION || 'us-east-1' 
-});
+// Configuración del Cliente AWS S3
+const REGION = process.env.AWS_REGION || 'us-east-1';
+const s3Client = new S3Client({ region: REGION });
 
 // =================================================================
 // 📸 ENDPOINT: Generar Presigned URL para subida a S3
@@ -21,26 +17,31 @@ router.post('/presigned-url', async (req, res) => {
   try {
     const { extension, mimeType } = req.body;
 
-    // 1. Obtener el nombre del Bucket directamente dentro de la petición
-    const bucketName = process.env.S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME || 'calza-app-storage-2026';
+    // Obtener el nombre del bucket de la variable o usar el fallback directo
+    const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
 
-    // Log para depurar en PM2 si el nombre está llegando bien
-    console.log('Bucket actual:', bucketName);
-
-    // Normalizar extensión y nombre de archivo
+    // Normalizar la extensión del archivo
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
+
+    // Generar un nombre único para la imagen
     const fileName = `calzados/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
+
+    // Determinar el tipo de contenido
     const contentType = mimeType || (cleanExt === 'png' ? 'image/png' : 'image/jpeg');
 
+    console.log(`📌 Generando Presigned URL para Bucket: "${targetBucket}", File: "${fileName}"`);
+
     const command = new PutObjectCommand({
-      Bucket: bucketName, // <-- Ya no llegará undefined
+      Bucket: targetBucket,
       Key: fileName,
       ContentType: contentType,
     });
 
+    // Generar la URL firmada (expira en 5 minutos)
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-    const region = process.env.AWS_REGION || 'us-east-1';
-    const fileUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${fileName}`;
+
+    // URL pública final del archivo en S3
+    const fileUrl = `https://${targetBucket}.s3.${REGION}.amazonaws.com/${fileName}`;
 
     return res.json({ 
       uploadUrl, 
