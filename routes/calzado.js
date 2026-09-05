@@ -17,24 +17,47 @@ const s3Client = new S3Client({
   useAccelerateEndpoint: true, // ⚡ Activa el endpoint de velocidad optimizada
 });
 
-// Helper para eliminar todos los objetos dentro de una carpeta (prefix) en S3
-async function eliminarCarpetaS3(bucket, prefijo) {
+// Helper para extraer la Key relativa de S3 desde una URL pública
+function obtenerS3KeyDesdeUrl(url) {
   try {
-    // 1. Listar los objetos almacenados dentro de la carpeta/prefijo
+    const parsedUrl = new URL(url);
+    return decodeURIComponent(parsedUrl.pathname.substring(1));
+  } catch (e) {
+    return null;
+  }
+}
+
+// Helper para limpiar las fotos antiguas de la carpeta en S3 pero EXCLUYENDO las fotos nuevas
+async function limpiarArchivosAntiguosS3(bucket, prefijoCarpeta, urlsNuevasConservar) {
+  try {
+    // 1. Obtener la lista de Keys que queremos CONSERVAR (las que recién subió Flutter)
+    const keysAConservar = new Set(
+      urlsNuevasConservar
+        .map(obtenerS3KeyDesdeUrl)
+        .filter((key) => key !== null)
+    );
+
+    // 2. Listar todos los objetos existentes dentro de la carpeta en S3
     const listCommand = new ListObjectsV2Command({
       Bucket: bucket,
-      Prefix: prefijo,
+      Prefix: prefijoCarpeta,
     });
     const listResult = await s3Client.send(listCommand);
 
     if (!listResult.Contents || listResult.Contents.length === 0) {
-      return; // La carpeta está vacía o no existe
+      return; // No hay imágenes previas
     }
 
-    // 2. Extraer las Keys de todos los archivos a eliminar
-    const objectsToDelete = listResult.Contents.map((obj) => ({ Key: obj.Key }));
+    // 3. Filtrar: eliminar solo aquellos archivos cuya Key NO esté en la lista de nuevas imágenes
+    const objectsToDelete = listResult.Contents
+      .filter((obj) => !keysAConservar.has(obj.Key))
+      .map((obj) => ({ Key: obj.Key }));
 
-    // 3. Ejecutar borrado masivo
+    if (objectsToDelete.length === 0) {
+      return; // Todos los archivos existentes son los nuevos
+    }
+
+    // 4. Borrar solo los archivos desactualizados/antiguos
     const deleteCommand = new DeleteObjectsCommand({
       Bucket: bucket,
       Delete: { 
@@ -44,9 +67,9 @@ async function eliminarCarpetaS3(bucket, prefijo) {
     });
 
     await s3Client.send(deleteCommand);
-    console.log(`🗑️ Se eliminó la carpeta S3 "${prefijo}" (${objectsToDelete.length} archivos).`);
+    console.log(`🗑️ Se eliminaron ${objectsToDelete.length} imagen(es) antiguas de la carpeta "${prefijoCarpeta}".`);
   } catch (error) {
-    console.error(`Error al eliminar la carpeta S3 (${prefijo}):`, error.message);
+    console.error(`Error al limpiar archivos antiguos en S3 (${prefijoCarpeta}):`, error.message);
   }
 }
 
@@ -72,7 +95,7 @@ router.post('/presigned-url', async (req, res) => {
     // Normalizar la extensión del archivo
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
 
-    // Ruta de carpeta coincidente: calzados/{id_inventario}/{nombre}/
+    // Generar un nombre único para la imagen incluyendo la subcarpeta con el id_inventario
     const fileName = `calzados/${id_inventario}/${nombre}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
 
     // Determinar el tipo de contenido
@@ -330,18 +353,17 @@ router.put('/:id', async (req, res) => {
       id_tipo_calzado,
       usuario_creacion,
       email_usuario,
-      id_inventario, // Importante para calcular el prefijo de la carpeta S3
-      imagenes
+      id_inventario,
+      imagenes // Array con las URLs definitivas que se van a conservar/guardar
     } = req.body;
 
-    // Conversión e higienización segura de tipos
     const parsedCalzadoId = parseInt(id, 10);
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
     const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
     const parsedImagenes = Array.isArray(imagenes) ? imagenes : null;
 
-    // 1. Obtener datos actuales del registro para verificar si cambió el nombre o inventario
+    // 1. Obtener datos actuales del producto para construir la ruta de la carpeta
     const selectQuery = `SELECT nombre, id_inventario FROM calzado WHERE id_calzado = $1;`;
     const selectResult = await pool.query(selectQuery, [parsedCalzadoId]);
 
@@ -352,17 +374,18 @@ router.put('/:id', async (req, res) => {
     const calzadoPrevio = selectResult.rows[0];
     const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
 
-    // Usar datos entrantes o los guardados previamente en caso de que no vengan en el body
     const inventarioFolder = parsedInventarioId !== null ? parsedInventarioId : calzadoPrevio.id_inventario;
     const nombreFolder = nombre || calzadoPrevio.nombre;
 
-    // 2. Ruta exacta del prefijo/carpeta del producto
+    // 2. Ruta exacta de la carpeta del producto
     const folderPrefix = `calzados/${inventarioFolder}/${nombreFolder}/`;
 
-    // 3. Purgar la carpeta completa en S3 antes de asociar las nuevas URLs
-    await eliminarCarpetaS3(targetBucket, folderPrefix);
+    // 3. Limpiar S3: borra todo lo que esté dentro de la carpeta EXCEPTO lo que venga en `parsedImagenes`
+    if (parsedImagenes && parsedImagenes.length > 0) {
+      await limpiarArchivosAntiguosS3(targetBucket, folderPrefix, parsedImagenes);
+    }
 
-    // 4. Actualizar el registro en la base de datos
+    // 4. Actualizar la base de datos
     const updateQuery = `
       UPDATE calzado SET
         nombre = $1,
@@ -394,7 +417,7 @@ router.put('/:id', async (req, res) => {
 
     await pool.query(updateQuery, values);
 
-    return res.status(200).json({ message: 'Calzado y carpeta de imágenes actualizados correctamente' });
+    return res.status(200).json({ message: 'Calzado e imágenes actualizados correctamente' });
   } catch (error) {
     console.error('Error detallado al actualizar calzado:', error.message);
     return res.status(500).json({ 
