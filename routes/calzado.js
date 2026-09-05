@@ -85,7 +85,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         activo,
         fecha_creacion,
         id_inventario,
-        imagen_url
+        imagenes
       FROM calzado
       WHERE activo = true AND 
             id_inventario = $1
