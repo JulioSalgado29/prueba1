@@ -7,7 +7,10 @@ const crypto = require('crypto');
 
 // Configuración del Cliente AWS S3
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const s3Client = new S3Client({ region: REGION });
+const s3Client = new S3Client({ 
+  region: REGION,
+  useAccelerateEndpoint: true, // ⚡ Activa el endpoint de velocidad optimizada
+});
 
 // =================================================================
 // 📸 ENDPOINT: Generar Presigned URL para subida a S3
