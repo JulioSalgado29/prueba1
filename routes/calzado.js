@@ -221,13 +221,14 @@ router.post('/', async (req, res) => {
       usuario_creacion,
       email_usuario,
       id_inventario,
-      imagen_url
+      imagenes // <-- Recibimos la lista de URLs como List<String>
     } = req.body;
 
     // Conversión e higienización segura de tipos
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
     const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
+    const parsedImagenes = Array.isArray(imagenes) ? imagenes : []; // Asegurar que sea Array para TEXT[]
 
     const query = `
       INSERT INTO calzado (
@@ -242,7 +243,7 @@ router.post('/', async (req, res) => {
         email_usuario, 
         id_inventario, 
         activo,
-        imagen_url
+        imagenes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11)
       RETURNING id_calzado;
     `;
@@ -258,7 +259,7 @@ router.post('/', async (req, res) => {
       usuario_creacion || null,
       email_usuario || null,
       parsedInventarioId,
-      imagen_url || null
+      parsedImagenes
     ];
 
     const result = await pool.query(query, values);
@@ -291,13 +292,14 @@ router.put('/:id', async (req, res) => {
       id_tipo_calzado,
       usuario_creacion,
       email_usuario,
-      imagen_url
+      imagenes // <-- Recibimos la lista de URLs como List<String>
     } = req.body;
 
     // Conversión e higienización segura de tipos
     const parsedCalzadoId = parseInt(id, 10);
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
+    const parsedImagenes = Array.isArray(imagenes) ? imagenes : null;
 
     const query = `
       UPDATE calzado SET
@@ -310,7 +312,7 @@ router.put('/:id', async (req, res) => {
         id_tipo_calzado = $7,
         usuario_creacion = $8,
         email_usuario = $9,
-        imagen_url = COALESCE($10, imagen_url)
+        imagenes = COALESCE($10, imagenes)
       WHERE id_calzado = $11;
     `;
 
@@ -324,7 +326,7 @@ router.put('/:id', async (req, res) => {
       parsedTipoCalzadoId,
       usuario_creacion || null,
       email_usuario || null,
-      imagen_url || null,
+      parsedImagenes,
       parsedCalzadoId
     ];
 
