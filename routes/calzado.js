@@ -18,10 +18,14 @@ const s3Client = new S3Client({
 // =================================================================
 router.post('/presigned-url', async (req, res) => {
   try {
-    const { id_inventario, extension, mimeType } = req.body;
+    const { id_inventario, nombre, extension, mimeType } = req.body;
 
     if (!id_inventario) {
       return res.status(400).json({ error: 'El id_inventario es requerido' });
+    }
+
+    if (!nombre) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
     }
 
     // Obtener el nombre del bucket de la variable o usar el fallback directo
@@ -31,7 +35,7 @@ router.post('/presigned-url', async (req, res) => {
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
 
     // Generar un nombre único para la imagen incluyendo la subcarpeta con el id_inventario
-    const fileName = `calzados/${id_inventario}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
+    const fileName = `calzados/${id_inventario}/${nombre}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
 
     // Determinar el tipo de contenido
     const contentType = mimeType || (cleanExt === 'png' ? 'image/png' : 'image/jpeg');
