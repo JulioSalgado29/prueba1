@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
 
 // Importar rutas de cada tabla
 const duenoMuestraRoutes = require('./routes/dueno_muestra');
@@ -15,7 +14,7 @@ const filaVentaRoutes = require('./routes/fila_venta');
 const filaVentaMultiplesRoutes = require('./routes/fila_venta_multiple');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());

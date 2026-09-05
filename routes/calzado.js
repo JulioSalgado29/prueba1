@@ -6,8 +6,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
 // Configuración del Cliente AWS S3
-require('dotenv').config();
-const REGION = process.env.AWS_REGION;
+const REGION = process.env.AWS_REGION || 'us-east-1';
 const s3Client = new S3Client({ region: REGION });
 
 // =================================================================
@@ -19,7 +18,7 @@ router.post('/presigned-url', async (req, res) => {
     const { extension, mimeType } = req.body;
 
     // Obtener el nombre del bucket de la variable o usar el fallback directo
-    const targetBucket = process.env.S3_BUCKET_NAME;
+    const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
 
     // Normalizar la extensión del archivo
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
