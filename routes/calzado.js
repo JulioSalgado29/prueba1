@@ -1,6 +1,56 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const crypto = require('crypto');
+
+// ☁️ Configuración del Cliente AWS S3
+// Usa el rol de IAM automáticamente al ejecutarse en EC2
+const REGION = process.env.AWS_REGION;
+const BUCKET_NAME = process.env.S3_BUCKET_NAME;
+
+const s3Client = new S3Client({ region: REGION });
+
+// =================================================================
+// 📸 ENDPOINT: Generar Presigned URL para subida a S3
+// POST /api/calzado/presigned-url
+// =================================================================
+router.post('/presigned-url', async (req, res) => {
+  try {
+    const { extension, mimeType } = req.body;
+    
+    // Normalizar la extensión del archivo
+    const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
+
+    // Generar un nombre único para la imagen
+    const fileName = `calzados/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
+
+    // Determinar el tipo de contenido dinámicamente o por fallback
+    const contentType = mimeType || (cleanExt === 'png' ? 'image/png' : 'image/jpeg');
+
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: fileName,
+      ContentType: contentType,
+    });
+
+    // La URL firmada expira en 5 minutos (300 segundos)
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+
+    // Estructura oficial de la URL directa del archivo en AWS S3
+    const fileUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${fileName}`;
+
+    return res.json({ 
+      uploadUrl, 
+      fileUrl,
+      key: fileName 
+    });
+  } catch (error) {
+    console.error('Error generando Presigned URL de S3:', error);
+    return res.status(500).json({ error: 'Error al generar la URL de subida' });
+  }
+});
 
 // 1. Listar calzados activos por inventario
 // Petición: GET /api/calzado/inventario/:id_inventario
@@ -21,7 +71,8 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         email_usuario,
         activo,
         fecha_creacion,
-        id_inventario
+        id_inventario,
+        imagen_url
       FROM calzado
       WHERE activo = true AND 
             id_inventario = $1
@@ -36,7 +87,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
 });
 
 // 1.1 Listar calzados activos por inventario
-// Petición: GET /api/calzado/inventario/:id_inventario
+// Petición: GET /api/calzado/inventario/update/:id_inventario
 router.get('/inventario/update/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
     try {
@@ -54,16 +105,17 @@ router.get('/inventario/update/:id_inventario', async (req, res) => {
         email_usuario,
         activo,
         fecha_creacion,
-        id_inventario
+        id_inventario,
+        imagen_url
       FROM calzado
       WHERE activo = true AND 
-            id_inventario = $1 or id_inventario=0
+            (id_inventario = $1 OR id_inventario = 0)
       ORDER BY fecha_creacion DESC`,
             [id_inventario]
         );
         res.json(resultado.rows);
     } catch (error) {
-        console.error('Error en GET /api/calzado/inventario:', error.message);
+        console.error('Error en GET /api/calzado/inventario/update:', error.message);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
@@ -87,7 +139,8 @@ router.get('/inventario/:id_inventario/colores', async (req, res) => {
         email_usuario,
         activo,
         fecha_creacion,
-        id_inventario
+        id_inventario,
+        imagen_url
       FROM calzado
       WHERE activo = true 
         AND colores = true
@@ -122,7 +175,8 @@ router.get('/:id', async (req, res) => {
         email_usuario,
         activo,
         fecha_creacion,
-        id_inventario
+        id_inventario,
+        imagen_url
       FROM calzado
       WHERE id_calzado = $1 AND activo = true`,
       [id]
@@ -153,7 +207,8 @@ router.post('/', async (req, res) => {
       id_tipo_calzado,
       usuario_creacion,
       email_usuario,
-      id_inventario
+      id_inventario,
+      imagen_url
     } = req.body;
 
     // Conversión e higienización segura de tipos
@@ -173,8 +228,9 @@ router.post('/', async (req, res) => {
         usuario_creacion, 
         email_usuario, 
         id_inventario, 
-        activo
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+        activo,
+        imagen_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11)
       RETURNING id_calzado;
     `;
 
@@ -188,7 +244,8 @@ router.post('/', async (req, res) => {
       parsedTipoCalzadoId,
       usuario_creacion || null,
       email_usuario || null,
-      parsedInventarioId
+      parsedInventarioId,
+      imagen_url || null
     ];
 
     const result = await pool.query(query, values);
@@ -220,7 +277,8 @@ router.put('/:id', async (req, res) => {
       colores,
       id_tipo_calzado,
       usuario_creacion,
-      email_usuario
+      email_usuario,
+      imagen_url
     } = req.body;
 
     // Conversión e higienización segura de tipos
@@ -238,8 +296,9 @@ router.put('/:id', async (req, res) => {
         colores = $6,
         id_tipo_calzado = $7,
         usuario_creacion = $8,
-        email_usuario = $9
-      WHERE id_calzado = $10;
+        email_usuario = $9,
+        imagen_url = COALESCE($10, imagen_url)
+      WHERE id_calzado = $11;
     `;
 
     const values = [
@@ -252,6 +311,7 @@ router.put('/:id', async (req, res) => {
       parsedTipoCalzadoId,
       usuario_creacion || null,
       email_usuario || null,
+      imagen_url || null,
       parsedCalzadoId
     ];
 
