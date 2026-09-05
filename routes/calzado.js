@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { 
+  S3Client, 
+  PutObjectCommand, 
+  ListObjectsV2Command, 
+  DeleteObjectsCommand 
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
@@ -12,14 +17,36 @@ const s3Client = new S3Client({
   useAccelerateEndpoint: true, // ⚡ Activa el endpoint de velocidad optimizada
 });
 
-// Helper para extraer la Key exacta de S3 desde una URL pública
-function obtenerS3KeyDesdeUrl(url) {
+// Helper para eliminar todos los objetos dentro de una carpeta (prefix) en S3
+async function eliminarCarpetaS3(bucket, prefijo) {
   try {
-    const parsedUrl = new URL(url);
-    // decodeURIComponent convierte caracteres codificados (%20) a texto plano
-    return decodeURIComponent(parsedUrl.pathname.substring(1));
-  } catch (e) {
-    return null;
+    // 1. Listar los objetos almacenados dentro de la carpeta/prefijo
+    const listCommand = new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefijo,
+    });
+    const listResult = await s3Client.send(listCommand);
+
+    if (!listResult.Contents || listResult.Contents.length === 0) {
+      return; // La carpeta está vacía o no existe
+    }
+
+    // 2. Extraer las Keys de todos los archivos a eliminar
+    const objectsToDelete = listResult.Contents.map((obj) => ({ Key: obj.Key }));
+
+    // 3. Ejecutar borrado masivo
+    const deleteCommand = new DeleteObjectsCommand({
+      Bucket: bucket,
+      Delete: { 
+        Objects: objectsToDelete, 
+        Quiet: true 
+      },
+    });
+
+    await s3Client.send(deleteCommand);
+    console.log(`🗑️ Se eliminó la carpeta S3 "${prefijo}" (${objectsToDelete.length} archivos).`);
+  } catch (error) {
+    console.error(`Error al eliminar la carpeta S3 (${prefijo}):`, error.message);
   }
 }
 
@@ -45,7 +72,7 @@ router.post('/presigned-url', async (req, res) => {
     // Normalizar la extensión del archivo
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
 
-    // Generar un nombre único para la imagen incluyendo la subcarpeta con el id_inventario
+    // Ruta de carpeta coincidente: calzados/{id_inventario}/{nombre}/
     const fileName = `calzados/${id_inventario}/${nombre}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
 
     // Determinar el tipo de contenido
@@ -232,14 +259,14 @@ router.post('/', async (req, res) => {
       usuario_creacion,
       email_usuario,
       id_inventario,
-      imagenes // <-- Recibimos la lista de URLs como List<String>
+      imagenes
     } = req.body;
 
     // Conversión e higienización segura de tipos
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
     const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
-    const parsedImagenes = Array.isArray(imagenes) ? imagenes : []; // Asegurar que sea Array para TEXT[]
+    const parsedImagenes = Array.isArray(imagenes) ? imagenes : [];
 
     const query = `
       INSERT INTO calzado (
@@ -303,54 +330,39 @@ router.put('/:id', async (req, res) => {
       id_tipo_calzado,
       usuario_creacion,
       email_usuario,
-      imagenes // <-- Recibimos la lista actualizada de URLs
+      id_inventario, // Importante para calcular el prefijo de la carpeta S3
+      imagenes
     } = req.body;
 
     // Conversión e higienización segura de tipos
     const parsedCalzadoId = parseInt(id, 10);
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
-    const parsedImagenes = Array.isArray(imagenes) ? imagenes : [];
+    const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
+    const parsedImagenes = Array.isArray(imagenes) ? imagenes : null;
 
-    // 1. Obtener imágenes almacenadas previamente en la base de datos
-    const selectQuery = `SELECT imagenes FROM calzado WHERE id_calzado = $1;`;
+    // 1. Obtener datos actuales del registro para verificar si cambió el nombre o inventario
+    const selectQuery = `SELECT nombre, id_inventario FROM calzado WHERE id_calzado = $1;`;
     const selectResult = await pool.query(selectQuery, [parsedCalzadoId]);
 
     if (selectResult.rowCount === 0) {
       return res.status(404).json({ error: 'Calzado no encontrado' });
     }
 
-    const imagenesAnteriores = selectResult.rows[0].imagenes || [];
+    const calzadoPrevio = selectResult.rows[0];
+    const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
 
-    // 2. Filtrar imágenes que estaban guardadas pero ya no se enviaron en la actualización
-    const imagenesAEliminar = imagenesAnteriores.filter(
-      (urlAntigua) => !parsedImagenes.includes(urlAntigua)
-    );
+    // Usar datos entrantes o los guardados previamente en caso de que no vengan en el body
+    const inventarioFolder = parsedInventarioId !== null ? parsedInventarioId : calzadoPrevio.id_inventario;
+    const nombreFolder = nombre || calzadoPrevio.nombre;
 
-    // 3. Eliminar los objetos descartados de S3
-    if (imagenesAEliminar.length > 0) {
-      const keysToDelete = imagenesAEliminar
-        .map(obtenerS3KeyDesdeUrl)
-        .filter((key) => key !== null)
-        .map((key) => ({ Key: key }));
+    // 2. Ruta exacta del prefijo/carpeta del producto
+    const folderPrefix = `calzados/${inventarioFolder}/${nombreFolder}/`;
 
-      if (keysToDelete.length > 0) {
-        const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
+    // 3. Purgar la carpeta completa en S3 antes de asociar las nuevas URLs
+    await eliminarCarpetaS3(targetBucket, folderPrefix);
 
-        const deleteCommand = new DeleteObjectsCommand({
-          Bucket: targetBucket,
-          Delete: {
-            Objects: keysToDelete,
-            Quiet: true,
-          },
-        });
-
-        await s3Client.send(deleteCommand);
-        console.log(`🗑️ Se eliminaron ${keysToDelete.length} imagen(es) antiguas de S3.`);
-      }
-    }
-
-    // 4. Actualizar la BD con la nueva lista de imágenes
+    // 4. Actualizar el registro en la base de datos
     const updateQuery = `
       UPDATE calzado SET
         nombre = $1,
@@ -362,7 +374,7 @@ router.put('/:id', async (req, res) => {
         id_tipo_calzado = $7,
         usuario_creacion = $8,
         email_usuario = $9,
-        imagenes = $10
+        imagenes = COALESCE($10, imagenes)
       WHERE id_calzado = $11;
     `;
 
@@ -382,7 +394,7 @@ router.put('/:id', async (req, res) => {
 
     await pool.query(updateQuery, values);
 
-    return res.status(200).json({ message: 'Calzado e imágenes actualizados correctamente' });
+    return res.status(200).json({ message: 'Calzado y carpeta de imágenes actualizados correctamente' });
   } catch (error) {
     console.error('Error detallado al actualizar calzado:', error.message);
     return res.status(500).json({ 
