@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 // Importar rutas de cada tabla
-const colorRoutes = require('./routes/color');
+const colorRoutes = require('./routes/colores');
 const duenoMuestraRoutes = require('./routes/dueno_muestra');
 const sesionGoogleLogRoutes = require('./routes/sesion_google_log');
 const usuarioRoutes = require('./routes/usuario');
