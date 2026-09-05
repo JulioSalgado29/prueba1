@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 // Importar rutas de cada tabla
+const colorRoutes = require('./routes/color');
 const duenoMuestraRoutes = require('./routes/dueno_muestra');
 const sesionGoogleLogRoutes = require('./routes/sesion_google_log');
 const usuarioRoutes = require('./routes/usuario');
@@ -25,6 +26,7 @@ app.get('/', (req, res) => {
 });
 
 // Registrar las rutas de dueno_muestra
+app.use('/api/color', colorRoutes);
 app.use('/api/dueno_muestra', duenoMuestraRoutes);
 app.use('/api/sesion_google_log', sesionGoogleLogRoutes);
 app.use('/api/usuario', usuarioRoutes);
