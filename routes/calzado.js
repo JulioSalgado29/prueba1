@@ -6,6 +6,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
 // Configuración del Cliente AWS S3
+require('dotenv').config();
 const REGION = process.env.AWS_REGION;
 const s3Client = new S3Client({ region: REGION });
 
