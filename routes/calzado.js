@@ -15,7 +15,11 @@ const s3Client = new S3Client({ region: REGION });
 // =================================================================
 router.post('/presigned-url', async (req, res) => {
   try {
-    const { extension, mimeType } = req.body;
+    const { id_inventario, extension, mimeType } = req.body;
+
+    if (!id_inventario) {
+      return res.status(400).json({ error: 'El id_inventario es requerido' });
+    }
 
     // Obtener el nombre del bucket de la variable o usar el fallback directo
     const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
@@ -23,8 +27,8 @@ router.post('/presigned-url', async (req, res) => {
     // Normalizar la extensión del archivo
     const cleanExt = extension ? extension.replace('.', '').toLowerCase() : 'jpg';
 
-    // Generar un nombre único para la imagen
-    const fileName = `calzados/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
+    // Generar un nombre único para la imagen incluyendo la subcarpeta con el id_inventario
+    const fileName = `calzados/${id_inventario}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${cleanExt}`;
 
     // Determinar el tipo de contenido
     const contentType = mimeType || (cleanExt === 'png' ? 'image/png' : 'image/jpeg');
@@ -41,7 +45,7 @@ router.post('/presigned-url', async (req, res) => {
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
     // URL pública final del archivo en S3
-    const fileUrl = `https://${targetBucket}.s3.${REGION}.amazonaws.com/${fileName}`;
+    const fileUrl = `https://${targetBucket}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileName}`;
 
     return res.json({ 
       uploadUrl, 
