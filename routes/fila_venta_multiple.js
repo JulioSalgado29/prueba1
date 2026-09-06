@@ -85,8 +85,8 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
                 COALESCE(SUM(cantidad), 0)::INT AS stock_total,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT id_calzado), NULL) AS calzados_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT talla), NULL) AS tallas_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT colores), NULL) AS colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT nombre), NULL) AS nombres_colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT colores ORDER BY colores), NULL) AS colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT nombre ORDER BY colores), NULL) AS nombres_colores_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT taco), NULL) AS tacos_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT plataforma), NULL) AS plataformas_disponibles
             FROM full_inventory;
