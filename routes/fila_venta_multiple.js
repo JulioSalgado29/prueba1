@@ -75,9 +75,10 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
         const queryText = `
             WITH full_inventory AS (
                 -- Trae los atributos filtrados progresivamente según los parámetros recibidos
-                SELECT fi.id_calzado, si.talla, si.colores, si.taco, si.plataforma, si.cantidad
+                SELECT fi.id_calzado, si.talla, si.colores, c.nombre, si.taco, si.plataforma, si.cantidad
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
+                INNER JOIN colores c ON c.id_color = si.colores AND c.id_inventario = fi.id_inventario
                 WHERE ${fullWhere.join(' AND ')}
             )
             SELECT 
@@ -85,6 +86,7 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT id_calzado), NULL) AS calzados_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT talla), NULL) AS tallas_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT colores), NULL) AS colores_disponibles,
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT nombre), NULL) AS nombres_colores_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT taco), NULL) AS tacos_disponibles,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT plataforma), NULL) AS plataformas_disponibles
             FROM full_inventory;
@@ -98,6 +100,7 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
             calzados_disponibles: data.calzados_disponibles || [],
             tallas_disponibles: data.tallas_disponibles || [],
             colores_disponibles: data.colores_disponibles || [],
+            nombres_colores_disponibles: data.nombres_colores_disponibles || [],
             tacos_disponibles: data.tacos_disponibles || [],
             plataformas_disponibles: data.plataformas_disponibles || []
         });

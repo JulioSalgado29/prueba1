@@ -9,19 +9,21 @@ router.get('/fila/:id_fila_inventario', async (req, res) => {
   try {
     const resultado = await pool.query(
       `SELECT 
-        id_subfila_inventario,
-        cantidad,
-        colores,
-        email_user,
-        fecha_creacion,
-        id_fila_inventario,
-        plataforma,
-        taco,
-        talla,
-        usuario_creacion
-      FROM subfila_inventario
-      WHERE id_fila_inventario = $1
-      ORDER BY talla ASC, taco ASC, plataforma ASC, colores ASC`,
+        subf.id_subfila_inventario,
+        subf.cantidad,
+        subf.colores,
+        c.nombre AS nombre_color,
+        subf.email_user,
+        subf.fecha_creacion,
+        subf.id_fila_inventario,
+        subf.plataforma,
+        subf.taco,
+        subf.talla,
+        subf.usuario_creacion
+      FROM subfila_inventario subf
+      INNER JOIN colores c ON c.id_color::text = subf.colores
+      WHERE subf.id_fila_inventario = $1
+      ORDER BY subf.talla ASC, subf.taco ASC, subf.plataforma ASC, subf.colores ASC`,
       [id_fila_inventario]
     );
     res.json(resultado.rows);
