@@ -9,8 +9,4 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-pool.on('connect', () => {
-  console.log('Conectado a la base de datos PostgreSQL');
-});
-
 module.exports = pool;
