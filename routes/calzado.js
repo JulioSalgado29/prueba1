@@ -81,6 +81,8 @@ router.post('/presigned-url', async (req, res) => {
   try {
     const { id_inventario, nombre, extension, mimeType } = req.body;
 
+    console.log('📌 Solicitud de Presigned URL recibida con datos:', { id_inventario, nombre, extension, mimeType });
+
     if (!id_inventario) {
       return res.status(400).json({ error: 'El id_inventario es requerido' });
     }
