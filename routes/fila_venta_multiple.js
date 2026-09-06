@@ -74,37 +74,39 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
 
         const queryText = `
             WITH full_inventory AS (
-                -- Trae los atributos filtrados progresivamente según los parámetros recibidos
-                SELECT fi.id_calzado, si.talla, si.colores, c.nombre, si.taco, si.plataforma, si.cantidad
-                FROM fila_inventario fi
-                INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                INNER JOIN colores c ON c.id_color::text = si.colores AND c.id_inventario = fi.id_inventario
-                WHERE ${fullWhere.join(' AND ')}
-            )
-            SELECT 
-                COALESCE(SUM(cantidad), 0)::INT AS stock_total,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT id_calzado), NULL) AS calzados_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT talla), NULL) AS tallas_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT colores ORDER BY colores), NULL) AS colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT nombre ORDER BY colores), NULL) AS nombres_colores_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT taco), NULL) AS tacos_disponibles,
-                ARRAY_REMOVE(ARRAY_AGG(DISTINCT plataforma), NULL) AS plataformas_disponibles
-            FROM full_inventory;
+    SELECT fi.id_calzado, si.talla, si.colores, c.nombre, si.taco, si.plataforma, si.cantidad
+    FROM fila_inventario fi
+    INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
+    INNER JOIN colores c ON c.id_color::text = si.colores AND c.id_inventario = fi.id_inventario
+    WHERE ${fullWhere.join(' AND ')}
+)
+SELECT 
+    COALESCE(SUM(cantidad), 0)::INT AS stock_total,
+    ARRAY_REMOVE(ARRAY_AGG(DISTINCT id_calzado), NULL) AS calzados_disponibles,
+    ARRAY_REMOVE(ARRAY_AGG(DISTINCT talla), NULL) AS tallas_disponibles,
+    ARRAY_REMOVE(ARRAY_AGG(DISTINCT taco), NULL) AS tacos_disponibles,
+    ARRAY_REMOVE(ARRAY_AGG(DISTINCT plataforma), NULL) AS plataformas_disponibles,
+    
+    -- Agrupamos id y nombre en objetos únicos dentro de un arreglo JSON
+    COALESCE(
+        JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', colores, 'nombre', nombre)) 
+        FILTER (WHERE colores IS NOT NULL), 
+        '[]'::jsonb
+    ) AS lista_colores_disponibles
+FROM full_inventory;
         `;
 
         const resultado = await pool.query(queryText, queryParams);
-        const data = resultado.rows[0] || {};
+const data = resultado.rows[0] || {};
 
-        res.json({
-            stock_disponible: data.stock_total || 0,
-            calzados_disponibles: data.calzados_disponibles || [],
-            tallas_disponibles: data.tallas_disponibles || [],
-            colores_disponibles: data.colores_disponibles || [],
-            nombres_colores_disponibles: data.nombres_colores_disponibles || [],
-            tacos_disponibles: data.tacos_disponibles || [],
-            plataformas_disponibles: data.plataformas_disponibles || []
-        });
-
+res.json({
+    stock_disponible: data.stock_total || 0,
+    calzados_disponibles: data.calzados_disponibles || [],
+    tallas_disponibles: data.tallas_disponibles || [],
+    colores_disponibles: data.lista_colores_disponibles || [], // Devuelve [{ id: "1", nombre: "Rojo" }, ...]
+    tacos_disponibles: data.tacos_disponibles || [],
+    plataformas_disponibles: data.plataformas_disponibles || []
+});
     } catch (error) {
         console.error('Error en GET /stock-cascada:', error);
         res.status(500).json({ error: 'Error al consultar el stock en cascada.' });
