@@ -18,6 +18,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         fv.cantidad,
         fv.talla,
         fv.colores,
+        c2.nombre AS color_nombre,
         fv.taco,
         fv.plataforma,
         fv.precio_venta_total,
@@ -33,6 +34,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         dm.id_dueno_muestra,
         dm.nombre AS dueno_muestra_nombre
       FROM fila_venta fv
+      INNER JOIN colores c2 ON c2.id_color::text = fv.colores AND c2.id_inventario = fv.id_inventario
       INNER JOIN calzado c ON c.id_calzado = fv.id_calzado
       LEFT JOIN dueno_muestra dm 
         ON dm.id_inventario = fv.id_inventario 
