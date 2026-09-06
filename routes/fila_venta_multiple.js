@@ -78,7 +78,7 @@ router.get('/stock-cascada/:id_inventario', async (req, res) => {
                 SELECT fi.id_calzado, si.talla, si.colores, c.nombre, si.taco, si.plataforma, si.cantidad
                 FROM fila_inventario fi
                 INNER JOIN subfila_inventario si ON fi.id_fila_inventario = si.id_fila_inventario
-                INNER JOIN colores c ON c.id_color = si.colores AND c.id_inventario = fi.id_inventario
+                INNER JOIN colores c ON c.id_color::text = si.colores AND c.id_inventario = fi.id_inventario
                 WHERE ${fullWhere.join(' AND ')}
             )
             SELECT 
