@@ -14,6 +14,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         estado,
         fecha_creacion,
         id_inventario,
+        id_tienda,
         monto,
         descripcion,
         usuario_creacion
@@ -42,6 +43,7 @@ router.get('/:id', async (req, res) => {
         estado,
         fecha_creacion,
         id_inventario,
+        id_tienda,
         monto,
         descripcion,
         usuario_creacion
@@ -65,16 +67,21 @@ router.get('/:id', async (req, res) => {
 // 3. Insertar gasto
 // Petición: POST /api/gasto
 router.post('/', async (req, res) => {
-  const { email_usuario, id_inventario, monto, descripcion, usuario_creacion } = req.body;
+  const { email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion } = req.body;
+
+  // Validación rápida obligatoria para id_tienda, monto y descripción
+  if (!id_tienda || !monto || !descripcion || descripcion.trim() === '') {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (tienda, monto o descripción)' });
+  }
 
   const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : 'anon';
 
   try {
     const nuevo = await pool.query(
-      `INSERT INTO gasto (email_usuario, id_inventario, monto, descripcion, usuario_creacion) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO gasto (email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [emailLimpio, id_inventario, monto, descripcion || null, usuario_creacion]
+      [emailLimpio, id_inventario, id_tienda, monto, descripcion.trim(), usuario_creacion]
     );
 
     res.status(201).json(nuevo.rows[0]);
@@ -88,17 +95,22 @@ router.post('/', async (req, res) => {
 // Petición: PUT /api/gasto/:id
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { email_usuario, monto, descripcion, usuario_creacion } = req.body;
+  const { email_usuario, id_tienda, monto, descripcion, usuario_creacion } = req.body;
+
+  // Validación rápida obligatoria
+  if (!id_tienda || !monto || !descripcion || descripcion.trim() === '') {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (tienda, monto o descripción)' });
+  }
 
   const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : 'anon';
 
   try {
     const resultado = await pool.query(
       `UPDATE gasto 
-       SET email_usuario = $1, monto = $2, descripcion = $3, usuario_creacion = $4 
-       WHERE id_gasto = $5 
+       SET email_usuario = $1, id_tienda = $2, monto = $3, descripcion = $4, usuario_creacion = $5 
+       WHERE id_gasto = $6 
        RETURNING *`,
-      [emailLimpio, monto, descripcion || null, usuario_creacion, id]
+      [emailLimpio, id_tienda, monto, descripcion.trim(), usuario_creacion, id]
     );
 
     if (resultado.rows.length === 0) {
