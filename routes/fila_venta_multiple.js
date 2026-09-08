@@ -97,16 +97,16 @@ FROM full_inventory;
         `;
 
         const resultado = await pool.query(queryText, queryParams);
-const data = resultado.rows[0] || {};
+        const data = resultado.rows[0] || {};
 
-res.json({
-    stock_disponible: data.stock_total || 0,
-    calzados_disponibles: data.calzados_disponibles || [],
-    tallas_disponibles: data.tallas_disponibles || [],
-    colores_disponibles: data.lista_colores_disponibles || [], // Devuelve [{ id: "1", nombre: "Rojo" }, ...]
-    tacos_disponibles: data.tacos_disponibles || [],
-    plataformas_disponibles: data.plataformas_disponibles || []
-});
+        res.json({
+            stock_disponible: data.stock_total || 0,
+            calzados_disponibles: data.calzados_disponibles || [],
+            tallas_disponibles: data.tallas_disponibles || [],
+            colores_disponibles: data.lista_colores_disponibles || [], // Devuelve [{ id: "1", nombre: "Rojo" }, ...]
+            tacos_disponibles: data.tacos_disponibles || [],
+            plataformas_disponibles: data.plataformas_disponibles || []
+        });
     } catch (error) {
         console.error('Error en GET /stock-cascada:', error);
         res.status(500).json({ error: 'Error al consultar el stock en cascada.' });
@@ -140,6 +140,7 @@ router.post('/batch', async (req, res) => {
                 precio_venta_total,
                 metodo_pago,
                 lugar_venta,
+                id_tienda = null, // <-- Extraer id_tienda
                 fecha_venta,
                 id_dueno_muestra = null
             } = item;
@@ -179,7 +180,7 @@ router.post('/batch', async (req, res) => {
 
             const id_venta = ventaRes.rows[0].id_venta;
 
-            // B. Insertar en tabla `fila_venta`
+            // B. Insertar en tabla `fila_venta` (se agrega id_tienda)
             const filaVentaRes = await client.query(
                 `INSERT INTO fila_venta (
                     id_venta,
@@ -193,11 +194,12 @@ router.post('/batch', async (req, res) => {
                     precio_venta_total,
                     metodo_pago,
                     lugar_venta,
+                    id_tienda,
                     usuario_creacion,
                     email_user,
                     fecha_venta,
                     id_dueno_muestra
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                 RETURNING *`,
                 [
                     id_venta,
@@ -211,28 +213,29 @@ router.post('/batch', async (req, res) => {
                     precio_venta_total,
                     metodo_pago,
                     lugar_venta,
-                    usuario_creacion,
-                    email_user,
-                    fechaFinal,
-                    id_dueno_muestra
+                    id_tienda, // <-- $12
+                    usuario_creacion, // <-- $13
+                    email_user, // <-- $14
+                    fechaFinal, // <-- $15
+                    id_dueno_muestra // <-- $16
                 ]
             );
 
             // C. Descontar stock de `subfila_inventario`
             const subfilaRes = await client.query(
                 `UPDATE subfila_inventario
-SET cantidad = cantidad - $1
-WHERE id_fila_inventario IN (
-    SELECT id_fila_inventario 
-    FROM fila_inventario 
-    WHERE id_calzado = $2 AND id_inventario = $3
-)
-AND talla = $4
-AND colores IS NOT DISTINCT FROM $5
-AND taco IS NOT DISTINCT FROM $6
-AND plataforma IS NOT DISTINCT FROM $7
-AND cantidad >= $1
-RETURNING id_subfila_inventario, id_fila_inventario;`,
+                SET cantidad = cantidad - $1
+                WHERE id_fila_inventario IN (
+                    SELECT id_fila_inventario 
+                    FROM fila_inventario 
+                    WHERE id_calzado = $2 AND id_inventario = $3
+                )
+                AND talla = $4
+                AND colores IS NOT DISTINCT FROM $5
+                AND taco IS NOT DISTINCT FROM $6
+                AND plataforma IS NOT DISTINCT FROM $7
+                AND cantidad >= $1
+                RETURNING id_subfila_inventario, id_fila_inventario;`,
                 [cantidad, id_calzado, id_inventario, talla, colores, taco, plataforma]
             );
 
