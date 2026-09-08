@@ -3,6 +3,7 @@ const cors = require('cors');
 
 // Importar rutas de cada tabla
 const colorRoutes = require('./routes/colores');
+const tiendaRoutes = require('./routes/tienda');
 const duenoMuestraRoutes = require('./routes/dueno_muestra');
 const sesionGoogleLogRoutes = require('./routes/sesion_google_log');
 const usuarioRoutes = require('./routes/usuario');
@@ -33,6 +34,7 @@ app.use('/api/usuario', usuarioRoutes);
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/tipo_calzado', tipoCalzadoRoutes);
 app.use('/api/calzado', calzadoRoutes);
+app.use('/api/tienda', tiendaRoutes);
 app.use('/api/fila_inventario', filaInventarioRoutes);
 app.use('/api/subfila_inventario', subfilaInventarioRoutes);
 app.use('/api/fila_venta', filaVentaRoutes);
