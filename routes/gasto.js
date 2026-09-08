@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
 
-// 1. Listar gastos de un inventario
-// Petición: GET /api/gasto/inventario/:id_inventario
+// 1. Listar gastos de un inventario y filtrado opcional por fecha (YYYY-MM-DD)
+// Petición: GET /api/gasto/inventario/:id_inventario?fecha=2026-08-24
 router.get('/inventario/:id_inventario', async (req, res) => {
   const { id_inventario } = req.params;
+  const { fecha } = req.query;
+
   try {
-    const resultado = await pool.query(
-      `SELECT 
+    let queryText = `
+      SELECT 
         id_gasto,
         email_usuario,
         estado,
@@ -21,9 +23,19 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       FROM gasto
       WHERE estado = true AND 
             id_inventario = $1
-      ORDER BY fecha_creacion DESC`,
-      [id_inventario]
-    );
+    `;
+
+    const queryParams = [id_inventario];
+
+    if (fecha) {
+      // Convierte fecha_creacion a hora Perú (UTC-5) y compara solo el día
+      queryText += ` AND (fecha_creacion - INTERVAL '5 hours')::date = $2::date`;
+      queryParams.push(fecha);
+    }
+
+    queryText += ` ORDER BY fecha_creacion DESC`;
+
+    const resultado = await pool.query(queryText, queryParams);
     res.json(resultado.rows);
   } catch (error) {
     console.error('Error en GET /api/gasto/inventario:', error.message);
@@ -31,6 +43,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
   }
 });
 
+module.exports = router;
 // 2. Buscar gasto por ID
 // Petición: GET /api/gasto/:id
 router.get('/:id', async (req, res) => {
