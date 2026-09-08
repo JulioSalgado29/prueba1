@@ -33,6 +33,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         c.icono AS calzado_icono,
         dm.id_dueno_muestra,
         dm.nombre AS dueno_muestra_nombre,
+        t.id_tienda,
         t.nombre AS tienda_nombre
       FROM fila_venta fv
       INNER JOIN colores c2 ON c2.id_color::text = fv.colores AND c2.id_inventario = fv.id_inventario
