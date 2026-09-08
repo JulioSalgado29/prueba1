@@ -344,6 +344,7 @@ router.put('/:id_fila_venta', async (req, res) => {
         precio_venta_total,
         metodo_pago,
         lugar_venta,
+        id_tienda = null, // <-- 1. Extraer id_tienda del req.body
         usuario_creacion,
         email_user
     } = req.body;
@@ -489,7 +490,7 @@ router.put('/:id_fila_venta', async (req, res) => {
             );
         }
 
-        // E. Actualizar `fila_venta`
+        // E. Actualizar `fila_venta` (Se agrega id_tienda)
         const filaVentaActualizada = await client.query(
             `UPDATE fila_venta SET
                 id_inventario = $1,
@@ -502,14 +503,15 @@ router.put('/:id_fila_venta', async (req, res) => {
                 precio_venta_total = $8,
                 metodo_pago = $9,
                 lugar_venta = $10,
-                usuario_creacion = $11,
-                email_user = $12
-            WHERE id_fila_venta = $13
+                id_tienda = $11,
+                usuario_creacion = $12,
+                email_user = $13
+            WHERE id_fila_venta = $14
             RETURNING *`,
             [
                 id_inventario, id_calzado, cantidad, talla, colores,
                 taco, plataforma, precio_venta_total, metodo_pago,
-                lugar_venta, usuario_creacion, email_user, id_fila_venta
+                lugar_venta, id_tienda, usuario_creacion, email_user, id_fila_venta
             ]
         );
 
