@@ -61,12 +61,13 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const { email_usuario, id_inventario, nombre, usuario_creacion } = req.body;
 
-  const emailLimpio = email_usuario.trim().toLowerCase();
+  const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : '';
+  const nombreLimpio = formatearNombre(nombre);
 
   try {
     const nuevo = await pool.query(
       'INSERT INTO colores (email_usuario, id_inventario, nombre, usuario_creacion) VALUES ($1, $2, $3, $4) RETURNING *',
-      [emailLimpio, id_inventario, nombre, usuario_creacion]
+      [emailLimpio, id_inventario, nombreLimpio, usuario_creacion]
     );
 
     res.status(201).json(nuevo.rows[0]);
@@ -82,12 +83,13 @@ router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { email_usuario, nombre, usuario_creacion } = req.body;
 
-  const emailLimpio = email_usuario.trim().toLowerCase();
+  const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : '';
+  const nombreLimpio = formatearNombre(nombre);
 
   try {
     const resultado = await pool.query(
       'UPDATE colores SET email_usuario = $1, nombre = $2, usuario_creacion = $3 WHERE id_color = $4 RETURNING *',
-      [emailLimpio, nombre, usuario_creacion, id]
+      [emailLimpio, nombreLimpio, usuario_creacion, id]
     );
 
     if (resultado.rows.length === 0) {
@@ -122,5 +124,16 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+const formatearNombre = (texto) => {
+  if (!texto) return '';
+  return texto
+    .normalize('NFD')                   // Descompone tildes (e.g., 'á' -> 'a' + '´')
+    .replace(/[\u0300-\u036f]/g, '')     // Elimina los diacríticos (tildes)
+    .replace(/\//g, '|')                 // Cambia '/' por '|'
+    .trim()                              // Elimina espacios al inicio y al final
+    .replace(/\s+/g, ' ')                // Reduce múltiples espacios consecutivos a uno solo
+    .toUpperCase();                     // Convierte a mayúsculas
+};
 
 module.exports = router;
