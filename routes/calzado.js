@@ -287,6 +287,9 @@ router.post('/', async (req, res) => {
       imagenes
     } = req.body;
 
+    // Higienización de texto
+    const nombreLimpio = limpiarNombreCalzado(nombre);
+
     // Conversión e higienización segura de tipos
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
@@ -312,7 +315,7 @@ router.post('/', async (req, res) => {
     `;
 
     const values = [
-      nombre || '',
+      nombreLimpio,
       icono || '',
       parsedPrecioReal,
       Boolean(taco),
@@ -359,6 +362,9 @@ router.put('/:id', async (req, res) => {
       imagenes // Array con las URLs definitivas que se van a conservar/guardar
     } = req.body;
 
+    // Higienización de texto
+    const nombreLimpio = limpiarNombreCalzado(nombre);
+
     const parsedCalzadoId = parseInt(id, 10);
     const parsedPrecioReal = parseFloat(precio_real) || 0.0;
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
@@ -377,7 +383,7 @@ router.put('/:id', async (req, res) => {
     const targetBucket = process.env.S3_BUCKET_NAME || 'calza-app-storage-2026';
 
     const inventarioFolder = parsedInventarioId !== null ? parsedInventarioId : calzadoPrevio.id_inventario;
-    const nombreFolder = nombre || calzadoPrevio.nombre;
+    const nombreFolder = nombreLimpio || calzadoPrevio.nombre;
 
     // 2. Ruta exacta de la carpeta del producto
     const folderPrefix = `calzados/${inventarioFolder}/${nombreFolder}/`;
@@ -404,7 +410,7 @@ router.put('/:id', async (req, res) => {
     `;
 
     const values = [
-      nombre || '',
+      nombreLimpio,
       icono || '',
       parsedPrecioReal,
       Boolean(taco),
@@ -450,5 +456,13 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+const limpiarNombreCalzado = (texto) => {
+  if (!texto) return '';
+  return texto
+    .replace(/\//g, '|')      // Cambia '/' por '|'
+    .trim()                   // Elimina espacios al inicio y final
+    .replace(/\s+/g, ' ');    // Reduce múltiples espacios a uno solo
+};
 
 module.exports = router;
