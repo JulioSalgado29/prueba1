@@ -196,6 +196,7 @@ router.post('/', async (req, res) => {
         precio_venta_total,
         metodo_pago,
         lugar_venta,
+        id_tienda, // 🔹 Recibimos id_tienda
         fecha_venta,
         usuario_creacion,
         email_user,
@@ -215,13 +216,14 @@ router.post('/', async (req, res) => {
                 colores,
                 fecha_venta,
                 lugar_venta,
+                id_tienda,
                 metodo_pago,
                 plataforma,
                 precio_venta_total,
                 taco,
                 talla,
                 usuario_creacion
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
             RETURNING id_venta`,
             [
                 id_calzado,
@@ -229,6 +231,7 @@ router.post('/', async (req, res) => {
                 colores,
                 fecha_venta || new Date(),
                 lugar_venta,
+                id_tienda || null, // 🔹 Asigna NULL si no viene seleccionado (ej. en "Live")
                 metodo_pago,
                 plataforma,
                 precio_venta_total,
@@ -240,7 +243,7 @@ router.post('/', async (req, res) => {
 
         const id_venta = ventaRes.rows[0].id_venta;
 
-        // B. Insertar en tabla `fila_venta` (condiciona descripcion_muestra)
+        // B. Insertar en tabla `fila_venta`
         const columnsFila = [
             'id_venta',
             'id_inventario',
@@ -254,6 +257,7 @@ router.post('/', async (req, res) => {
             'precio_venta_total',
             'metodo_pago',
             'lugar_venta',
+            'id_tienda', // 🔹 Columna en fila_venta
             'usuario_creacion',
             'email_user',
             'fecha_venta'
@@ -272,6 +276,7 @@ router.post('/', async (req, res) => {
             precio_venta_total,
             metodo_pago,
             lugar_venta,
+            id_tienda || null, // 🔹 Valor id_tienda
             usuario_creacion,
             email_user,
             fecha_venta || new Date()
