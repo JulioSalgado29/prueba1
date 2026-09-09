@@ -121,7 +121,7 @@ router.get('/inventario/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const query = `
-      SELECT email, id_inventario 
+      SELECT email,u.nombre,id_inventario 
       FROM propietario p
       INNER JOIN inventario i ON i.id_propietario = p.id_propietario
       INNER JOIN usuario u ON u.id_propietario = i.id_propietario
