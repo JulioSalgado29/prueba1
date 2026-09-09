@@ -93,7 +93,7 @@ router.get('/listar', async (req, res) => {
 
     // Pasar NULL para que el procedimiento asigne el nombre interno 'c_cierres'
     await client.query('CALL sp_listar_cierres_caja(NULL)');
-    
+
     // Obtener los registros del cursor definido en el SP
     const resultado = await client.query('FETCH ALL FROM c_cierres');
 
@@ -105,6 +105,26 @@ router.get('/listar', async (req, res) => {
     res.status(500).json({ error: 'Error interno al listar los cierres de caja' });
   } finally {
     client.release();
+  }
+});
+
+// 3. Obtener correos asociados a un inventario específico
+// Petición: GET /api/cierre_caja/inventario/:id
+router.get('/inventario/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const query = `
+      SELECT email, id_inventario 
+      FROM propietario p
+      INNER JOIN inventario i ON i.id_propietario = p.id_propietario
+      INNER JOIN usuario u ON u.id_propietario = i.id_propietario
+      WHERE id_inventario = $1;
+    `;
+    const resultado = await pool.query(query, [id]);
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error('Error en GET /api/cierre_caja/inventario/:id:', error.message);
+    res.status(500).json({ error: 'Error interno al obtener los datos del inventario' });
   }
 });
 
