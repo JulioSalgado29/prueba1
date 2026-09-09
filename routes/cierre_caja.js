@@ -91,11 +91,11 @@ router.get('/listar', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Ejecutar el SP que abre el cursor con los cierres
-    await client.query(`CALL sp_listar_cierres_caja('ref_cierres')`);
+    // Pasar NULL para que el procedimiento asigne el nombre interno 'c_cierres'
+    await client.query('CALL sp_listar_cierres_caja(NULL)');
     
-    // Obtener los registros del cursor
-    const resultado = await client.query('FETCH ALL FROM ref_cierres');
+    // Obtener los registros del cursor definido en el SP
+    const resultado = await client.query('FETCH ALL FROM c_cierres');
 
     await client.query('COMMIT');
     res.json(resultado.rows);
