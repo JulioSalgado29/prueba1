@@ -135,4 +135,45 @@ router.get('/inventario/:id', async (req, res) => {
   }
 });
 
+// 4. Obtener toda la información de un cierre de caja por su ID específico
+// Petición: GET /api/cierre_caja/detalle/:id
+router.get('/detalle/:id', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Llamada al procedimiento almacenado pasando el ID del cierre de caja y los cursores
+    await client.query(
+      `CALL sp_obtener_cierre_caja_por_id($1, 'c_resumen_financiero_id', 'c_calzado_cantidad_id', 'c_detalle_caracteristicas_id', 'c_tipo_calzado_id', 'c_metodo_pago_id')`,
+      [id]
+    );
+
+    // Fetch de los cursores con los nombres internos definidos para esta consulta por ID
+    const resResumen = await client.query('FETCH ALL FROM c_resumen_financiero_id');
+    const resCalzado = await client.query('FETCH ALL FROM c_calzado_cantidad_id');
+    const resCaracteristicas = await client.query('FETCH ALL FROM c_detalle_caracteristicas_id');
+    const resTipoCalzado = await client.query('FETCH ALL FROM c_tipo_calzado_id');
+    const resMetodoPago = await client.query('FETCH ALL FROM c_metodo_pago_id');
+
+    await client.query('COMMIT');
+
+    res.json({
+      mensaje: 'Cierre de caja obtenido correctamente por ID',
+      resumen_financiero: resResumen.rows,
+      calzado_cantidad: resCalzado.rows,
+      detalle_caracteristicas: resCaracteristicas.rows,
+      tipo_calzado: resTipoCalzado.rows,
+      metodo_pago: resMetodoPago.rows
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error en GET /api/cierre_caja/detalle/:id:', error.message);
+    res.status(500).json({ error: 'Error interno al obtener el cierre de caja por ID' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
