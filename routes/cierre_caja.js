@@ -87,12 +87,19 @@ router.post('/tienda', async (req, res) => {
 // Listar todos los registros generales de cierre de caja
 // Petición: GET /api/cierre_caja/listar
 router.get('/listar', async (req, res) => {
+  const { id_inventario } = req.query;
+
+  // Validación opcional por si es obligatorio
+  if (!id_inventario) {
+    return res.status(400).json({ error: 'El parámetro id_inventario es obligatorio' });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Pasar NULL para que el procedimiento asigne el nombre interno 'c_cierres'
-    await client.query('CALL sp_listar_cierres_caja(NULL)');
+    // Pasamos id_inventario y NULL para el refcursor
+    await client.query('CALL sp_listar_cierres_caja($1, NULL)', [id_inventario]);
 
     // Obtener los registros del cursor definido en el SP
     const resultado = await client.query('FETCH ALL FROM c_cierres');
