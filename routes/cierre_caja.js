@@ -5,24 +5,24 @@ const pool = require('../db');
 // 1. Cierre de caja por Correo (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/correo
 router.post('/correo', async (req, res) => {
-  const { fecha, email_user } = req.body;
+  const { fecha, email_user, nombre } = req.body;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado por correo
+    // Llamada al procedimiento almacenado pasando el nuevo parámetro 'nombre' (usuario_creacion usa email_user)
     await client.query(
-      `CALL sp_guardar_y_reportar_cierre_caja($1, $2, 'ref_resumen_financiero', 'ref_calzado_cantidad', 'ref_detalle_caracteristicas', 'ref_tipo_calzado', 'ref_metodo_pago')`,
-      [fecha, email_user]
+      `CALL sp_guardar_y_reportar_cierre_caja_por_usuario($1, $2, $3, 'c_resumen_financiero_usr', 'c_calzado_cantidad_usr', 'c_detalle_caracteristicas_usr', 'c_tipo_calzado_usr', 'c_metodo_pago_usr')`,
+      [fecha, email_user, nombre || email_user]
     );
 
-    // Fetch de los cursores devueltos por el SP
-    const resResumen = await client.query('FETCH ALL FROM ref_resumen_financiero');
-    const resCalzado = await client.query('FETCH ALL FROM ref_calzado_cantidad');
-    const resCaracteristicas = await client.query('FETCH ALL FROM ref_detalle_caracteristicas');
-    const resTipoCalzado = await client.query('FETCH ALL FROM ref_tipo_calzado');
-    const resMetodoPago = await client.query('FETCH ALL FROM ref_metodo_pago');
+    // Fetch de los cursores con los nombres internos correctos que define el SP
+    const resResumen = await client.query('FETCH ALL FROM c_resumen_financiero_usr');
+    const resCalzado = await client.query('FETCH ALL FROM c_calzado_cantidad_usr');
+    const resCaracteristicas = await client.query('FETCH ALL FROM c_detalle_caracteristicas_usr');
+    const resTipoCalzado = await client.query('FETCH ALL FROM c_tipo_calzado_usr');
+    const resMetodoPago = await client.query('FETCH ALL FROM c_metodo_pago_usr');
 
     await client.query('COMMIT');
 
@@ -46,24 +46,24 @@ router.post('/correo', async (req, res) => {
 // 2. Cierre de caja por ID de Tienda (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/tienda
 router.post('/tienda', async (req, res) => {
-  const { fecha, id_tienda } = req.body;
+  const { fecha, id_tienda, usuario_creacion } = req.body;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado por ID de tienda
+    // Llamada al procedimiento almacenado por ID de tienda pasando el parámetro de usuario
     await client.query(
-      `CALL sp_guardar_y_reportar_cierre_caja_por_tienda($1, $2, 'ref_resumen_financiero', 'ref_calzado_cantidad', 'ref_detalle_caracteristicas', 'ref_tipo_calzado', 'ref_metodo_pago')`,
-      [fecha, id_tienda]
+      `CALL sp_guardar_y_reportar_cierre_caja_por_tienda($1, $2, $3, 'c_resumen_financiero_tienda', 'c_calzado_cantidad_tienda', 'c_detalle_caracteristicas_tienda', 'c_tipo_calzado_tienda', 'c_metodo_pago_tienda')`,
+      [fecha, id_tienda, usuario_creacion]
     );
 
-    // Fetch de los cursores devueltos por el SP
-    const resResumen = await client.query('FETCH ALL FROM ref_resumen_financiero');
-    const resCalzado = await client.query('FETCH ALL FROM ref_calzado_cantidad');
-    const resCaracteristicas = await client.query('FETCH ALL FROM ref_detalle_caracteristicas');
-    const resTipoCalzado = await client.query('FETCH ALL FROM ref_tipo_calzado');
-    const resMetodoPago = await client.query('FETCH ALL FROM ref_metodo_pago');
+    // Fetch de los cursores con los nombres internos correctos que define el SP
+    const resResumen = await client.query('FETCH ALL FROM c_resumen_financiero_tienda');
+    const resCalzado = await client.query('FETCH ALL FROM c_calzado_cantidad_tienda');
+    const resCaracteristicas = await client.query('FETCH ALL FROM c_detalle_caracteristicas_tienda');
+    const resTipoCalzado = await client.query('FETCH ALL FROM c_tipo_calzado_tienda');
+    const resMetodoPago = await client.query('FETCH ALL FROM c_metodo_pago_tienda');
 
     await client.query('COMMIT');
 
