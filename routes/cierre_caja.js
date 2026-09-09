@@ -5,16 +5,16 @@ const pool = require('../db');
 // 1. Cierre de caja por Correo (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/correo
 router.post('/correo', async (req, res) => {
-  const { fecha, email_user, nombre } = req.body;
+  const { fecha, email_user, usuario } = req.body;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado pasando el nuevo parámetro 'nombre' (usuario_creacion usa email_user)
+    // Llamada al procedimiento almacenado pasando el nuevo parámetro 'usuario' (usuario_creacion usa email_user)
     await client.query(
       `CALL sp_guardar_y_reportar_cierre_caja_por_usuario($1, $2, $3, 'c_resumen_financiero_usr', 'c_calzado_cantidad_usr', 'c_detalle_caracteristicas_usr', 'c_tipo_calzado_usr', 'c_metodo_pago_usr')`,
-      [fecha, email_user, nombre || email_user]
+      [fecha, email_user, usuario || email_user]
     );
 
     // Fetch de los cursores con los nombres internos correctos que define el SP
@@ -46,7 +46,7 @@ router.post('/correo', async (req, res) => {
 // 2. Cierre de caja por ID de Tienda (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/tienda
 router.post('/tienda', async (req, res) => {
-  const { fecha, id_tienda, usuario_creacion } = req.body;
+  const { fecha, id_tienda, usuario } = req.body;
   const client = await pool.connect();
 
   try {
@@ -55,7 +55,7 @@ router.post('/tienda', async (req, res) => {
     // Llamada al procedimiento almacenado por ID de tienda pasando el parámetro de usuario
     await client.query(
       `CALL sp_guardar_y_reportar_cierre_caja_por_tienda($1, $2, $3, 'c_resumen_financiero_tienda', 'c_calzado_cantidad_tienda', 'c_detalle_caracteristicas_tienda', 'c_tipo_calzado_tienda', 'c_metodo_pago_tienda')`,
-      [fecha, id_tienda, usuario_creacion]
+      [fecha, id_tienda, usuario]
     );
 
     // Fetch de los cursores con los nombres internos correctos que define el SP
