@@ -84,4 +84,28 @@ router.post('/tienda', async (req, res) => {
   }
 });
 
+// Listar todos los registros generales de cierre de caja
+// Petición: GET /api/cierre_caja/listar
+router.get('/listar', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Ejecutar el SP que abre el cursor con los cierres
+    await client.query(`CALL sp_listar_cierres_caja('ref_cierres')`);
+    
+    // Obtener los registros del cursor
+    const resultado = await client.query('FETCH ALL FROM ref_cierres');
+
+    await client.query('COMMIT');
+    res.json(resultado.rows);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error en GET /api/cierre_caja/listar:', error.message);
+    res.status(500).json({ error: 'Error interno al listar los cierres de caja' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
