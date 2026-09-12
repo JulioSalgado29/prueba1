@@ -18,16 +18,13 @@ router.post('/filtrar', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Llamada segura usando un bloque anónimo para evitar errores de sintaxis con cursores
+    // Llamada directa con CALL limpia, sin castings inline que rompen node-postgres
     await client.query(
-      `DO $$ 
-       BEGIN 
-           PERFORM sp_filtrar_inventario($1::INT[], $2::INT[], $3::INT[], $4::TEXT, $5::INT[], $6::INT()); 
-       END $$;`,
+      `CALL sp_filtrar_inventario($1, $2, $3, $4, $5, $6)`,
       [p_ids_calzado, p_ids_color, p_tallas, p_plataforma, p_tacos, p_inventario_id]
     );
 
-    // Fetch de los cursores definidos
+    // Fetch de los cursores definidos en el SP
     const resultadoCabecera = await client.query('FETCH ALL FROM ref_inventario_cabecera;');
     const resultadoDetalle = await client.query('FETCH ALL FROM ref_inventario_detalle;');
 
