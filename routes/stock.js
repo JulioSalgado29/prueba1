@@ -18,13 +18,16 @@ router.post('/filtrar', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Ejecutar el procedimiento almacenado correctamente
+    // Llamada segura usando un bloque anónimo para evitar errores de sintaxis con cursores
     await client.query(
-      `SELECT sp_filtrar_inventario($1::INT[], $2::INT[], $3::INT[], $4::TEXT, $5::INT[], $6::INT())`,
+      `DO $$ 
+       BEGIN 
+           PERFORM sp_filtrar_inventario($1::INT[], $2::INT[], $3::INT[], $4::TEXT, $5::INT[], $6::INT()); 
+       END $$;`,
       [p_ids_calzado, p_ids_color, p_tallas, p_plataforma, p_tacos, p_inventario_id]
     );
 
-    // 2. Hacer fetch a los cursores (asegúrate de que los nombres de los cursores coincidan con los definidos en tu PL/pgSQL)
+    // Fetch de los cursores definidos
     const resultadoCabecera = await client.query('FETCH ALL FROM ref_inventario_cabecera;');
     const resultadoDetalle = await client.query('FETCH ALL FROM ref_inventario_detalle;');
 
