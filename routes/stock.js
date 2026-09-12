@@ -18,13 +18,13 @@ router.post('/filtrar', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado
+    // 1. Ejecutar el procedimiento almacenado correctamente
     await client.query(
-      `CALL sp_filtrar_inventario($1::INT[], $2::INT[], $3::INT[], $4::TEXT, $5::INT[], $6::INT())`,
+      `SELECT sp_filtrar_inventario($1::INT[], $2::INT[], $3::INT[], $4::TEXT, $5::INT[], $6::INT())`,
       [p_ids_calzado, p_ids_color, p_tallas, p_plataforma, p_tacos, p_inventario_id]
     );
 
-    // Fetch de los cursores definidos en el SP
+    // 2. Hacer fetch a los cursores (asegúrate de que los nombres de los cursores coincidan con los definidos en tu PL/pgSQL)
     const resultadoCabecera = await client.query('FETCH ALL FROM ref_inventario_cabecera;');
     const resultadoDetalle = await client.query('FETCH ALL FROM ref_inventario_detalle;');
 
@@ -36,8 +36,8 @@ router.post('/filtrar', async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error en POST /api/inventario/filtrar:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('DETALLE DEL ERROR SQL:', error.message);
+    res.status(500).json({ error: error.message });
   } finally {
     client.release();
   }
