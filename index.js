@@ -16,6 +16,7 @@ const filaVentaRoutes = require('./routes/fila_venta');
 const filaVentaMultiplesRoutes = require('./routes/fila_venta_multiple');
 const gastoRoutes = require('./routes/gasto');
 const cierreCajaRoutes = require('./routes/cierre_caja');
+const stockRoutes = require('./routes/stock');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -43,6 +44,7 @@ app.use('/api/fila_venta', filaVentaRoutes);
 app.use('/api/fila_venta_multiple', filaVentaMultiplesRoutes);
 app.use('/api/gasto', gastoRoutes);
 app.use('/api/cierre_caja', cierreCajaRoutes);
+app.use('/api/stock', stockRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
