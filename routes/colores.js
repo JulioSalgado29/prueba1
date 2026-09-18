@@ -6,21 +6,45 @@ const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la u
 // Petición: GET /api/colores/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
   const { id_inventario } = req.params;
+  const { id_calzado } = req.query;
+
+  // Normalizar a número o null si no viene, es vacío o 0
+  const parsedIdCalzado = id_calzado && Number(id_calzado) > 0
+    ? Number(id_calzado)
+    : null;
+
   try {
     const resultado = await pool.query(
       `SELECT 
-        id_color,
-        email_usuario,
-        estado,
-        fecha_creacion,
-        id_inventario,
-        nombre,
-        usuario_creacion
-      FROM colores
-      WHERE estado = true AND 
-            id_inventario = $1
-      ORDER BY nombre ASC`,
-      [id_inventario]
+        col.id_color,
+        col.email_usuario,
+        col.estado,
+        col.fecha_creacion,
+        col.id_inventario,
+        col.nombre,
+        col.usuario_creacion,
+        CASE 
+          WHEN $2::integer IS NULL THEN false
+          ELSE EXISTS (
+            SELECT 1 
+            FROM calzado cal
+            INNER JOIN fila_inventario fi ON fi.id_calzado = cal.id_calzado
+            WHERE fi.id_inventario = col.id_inventario
+              AND cal.id_calzado = $2::integer
+              AND cal.activo = true
+              AND cal.imagenes IS NOT NULL
+              AND EXISTS (
+                SELECT 1 
+                FROM unnest(cal.imagenes) AS img
+                WHERE img ILIKE '%' || fi.id_inventario || '/' || cal.nombre || '/' || col.nombre || '%'
+              )
+          )
+        END AS aparece_en_imagenes
+      FROM colores col
+      WHERE col.estado = true 
+        AND col.id_inventario = $1
+      ORDER BY col.nombre ASC`,
+      [id_inventario, parsedIdCalzado]
     );
     res.json(resultado.rows);
   } catch (error) {
