@@ -5,6 +5,7 @@ const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la u
 // 1. Filtrar Inventario (Cabecera y Detalle usando sp_filtrar_inventario)
 // Petición: POST /api/inventario/filtrar
 router.post('/filtrar', async (req, res) => {
+  console.log('BODY RECIBIDO:', req.body); // <-- Revisa qué llega exactamente aquí
   const { 
     p_ids_calzado = [], 
     p_ids_color = [], 
