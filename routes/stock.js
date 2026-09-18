@@ -9,7 +9,7 @@ router.post('/filtrar', async (req, res) => {
     p_ids_calzado = [], 
     p_ids_color = [], 
     p_tallas = [], 
-    p_plataforma = '0', 
+    p_plataforma = [], 
     p_tacos = [], 
     p_inventario_id 
   } = req.body;
