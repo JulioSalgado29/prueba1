@@ -8,10 +8,13 @@ router.get('/inventario/:id_inventario', async (req, res) => {
   const { id_inventario } = req.params;
   const { id_calzado } = req.query;
 
-  // Normalizar a número o null si no viene, es vacío o 0
+  console.log(`📥 [Backend] GET /inventario/${id_inventario} | id_calzado query:`, id_calzado);
+
   const parsedIdCalzado = id_calzado && Number(id_calzado) > 0
     ? Number(id_calzado)
     : null;
+
+  const parsedIdInventario = Number(id_inventario);
 
   try {
     const resultado = await pool.query(
@@ -44,11 +47,11 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       WHERE col.estado = true 
         AND col.id_inventario = $1
       ORDER BY col.nombre ASC`,
-      [id_inventario, parsedIdCalzado]
+      [parsedIdInventario, parsedIdCalzado]
     );
     res.json(resultado.rows);
   } catch (error) {
-    console.error('Error en GET /api/colores/inventario:', error.message);
+    console.error('❌ Error en GET /api/colores/inventario:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
