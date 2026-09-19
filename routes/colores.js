@@ -46,7 +46,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       FROM colores col
       WHERE col.estado = true 
         AND col.id_inventario = $1
-      ORDER BY col.nombre ASC`,
+      ORDER BY aparece_en_imagenes DESC, col.nombre ASC`,
       [parsedIdInventario, parsedIdCalzado]
     );
     res.json(resultado.rows);
