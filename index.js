@@ -5,11 +5,9 @@ const admin = require('firebase-admin');
 // 🔹 Apuntando directamente al archivo JSON que está en la misma carpeta raíz
 const serviceAccount = require('./serviceAccountKey.json');
 
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-}
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
 
 // Importar rutas de cada tabla
 const colorRoutes = require('./routes/colores');
