@@ -1,13 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
-
 const serviceAccount = require('./serviceAccountKey.json');
-console.log("🔍 [DEBUG] Contenido de serviceAccount:", serviceAccount);
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+// Inicialización segura para firebase-admin
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 
 // Importar rutas de cada tabla
 const colorRoutes = require('./routes/colores');
