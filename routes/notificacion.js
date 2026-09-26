@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db'); 
-const admin = require('firebase-admin');
+const { getMessaging } = require('firebase-admin/messaging');
 
 // 1. Guardar o actualizar el Token FCM del dispositivo del Administrador
 router.post('/token', async (req, res) => {
@@ -133,9 +133,8 @@ router.post('/enviar-venta', async (req, res) => {
 
         console.log('🚀 [Backend] Enviando notificaciones mediante Firebase Cloud Messaging...');
         
-        // Uso seguro del servicio de mensajería compatible con versiones modernas de firebase-admin
-        const messaging = admin.messaging();
-        const respuestaAdmin = await messaging.sendEachForMulticast(mensaje);
+        // Uso correcto de getMessaging() para la versión instalada
+        const respuestaAdmin = await getMessaging().sendEachForMulticast(mensaje);
         
         console.log(`✅ [Backend] Firebase envió las notificaciones. Exitosas: ${respuestaAdmin.successCount}, Fallidas: ${respuestaAdmin.failureCount}`);
 
