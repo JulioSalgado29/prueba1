@@ -2,8 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
 
-// 🔹 Apuntando directamente al archivo JSON que está en la misma carpeta raíz
 const serviceAccount = require('./serviceAccountKey.json');
+console.log("🔍 [DEBUG] Contenido de serviceAccount:", serviceAccount);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
