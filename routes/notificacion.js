@@ -124,7 +124,8 @@ router.post('/enviar-venta', async (req, res) => {
             tokens: tokensDestinatarios,
             android: {
                 notification: {
-                    sound: 'alerta_calza_app',
+                    sound: 'alerta_calza_app', // Ojo: Nombre exacto SIN .mp3
+                    channelId: 'canal_calza_app', // ID del canal que leerá Android
                     priority: 'high',
                     defaultSound: false,
                 },
@@ -132,7 +133,7 @@ router.post('/enviar-venta', async (req, res) => {
             apns: {
                 payload: {
                     aps: {
-                        sound: 'alerta_calza_app.wav',
+                        sound: 'default',
                         badge: 1,
                     },
                 },
