@@ -80,11 +80,12 @@ router.post('/enviar-venta', async (req, res) => {
       SELECT u.id_usuario, u.email, u.fcm_token 
       FROM usuario u 
       JOIN usuario_rol r ON u.id_usuario_rol = r.id_usuario_rol 
+      JOIN inventario i ON u.id_propietario = i.id_propietario
       WHERE r.nombre_rol IN ('Administrador', 'Almacenero') 
         AND LOWER(u.email) != $1
         AND u.fcm_token IS NOT NULL
         AND u.fcm_token != ''
-        AND u.id_inventario = $2
+        AND i.id_inventario = $2
     `;
 
         const resultado = await pool.query(queryDestinatarios, [emailLimpio, id_inventario]);
