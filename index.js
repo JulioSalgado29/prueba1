@@ -1,10 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const admin = require('firebase-admin'); // 🔹 1. Importar firebase-admin
+const admin = require('firebase-admin');
 
-// 🔹 2. Inicializar Firebase (asegúrate de cargar tus credenciales del archivo JSON)
-// Opción A: Usando el archivo de credenciales descargado de Firebase Console
-const serviceAccount = require('./config/tu-archivo-firebase-key.json'); // Reemplaza por la ruta real de tu archivo JSON
+// 🔹 Apuntando directamente al archivo JSON que está en la misma carpeta raíz
+const serviceAccount = require('./serviceAccountKey.json');
 
 if (!admin.apps.length) {
     admin.initializeApp({
