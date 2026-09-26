@@ -203,6 +203,8 @@ router.post('/', async (req, res) => {
         muestra = false
     } = req.body;
 
+    console.log('probandoaca')
+
     const client = await pool.connect();
 
     try {
