@@ -6,14 +6,19 @@ const admin = require('firebase-admin'); // Asegúrate de tener configurado fire
 // 1. Guardar o actualizar el Token FCM del dispositivo del Administrador
 // Petición: POST /api/notificaciones/token
 router.post('/token', async (req, res) => {
+    console.log('📥 [Backend] POST /api/notificaciones/token - Solicitud recibida');
+    console.log('📦 [Backend] Body recibido:', req.body);
+
     const { email_usuario, fcm_token } = req.body;
 
     // 1. Validación rápida obligatoria
     if (!email_usuario || !fcm_token || fcm_token.trim() === '') {
+        console.log('⚠️ [Backend] Validación fallida en /token: Faltan campos obligatorios');
         return res.status(400).json({ error: 'Faltan campos obligatorios (email o token)' });
     }
 
     const emailLimpio = email_usuario.trim().toLowerCase();
+    console.log(`🔍 [Backend] Buscando usuario para token con email: ${emailLimpio}`);
 
     try {
         // 2. Verificar que el usuario exista en el sistema (sin restringir el rol aquí)
@@ -26,10 +31,12 @@ router.post('/token', async (req, res) => {
         );
 
         if (userQuery.rows.length === 0) {
+            console.log(`❌ [Backend] Usuario no encontrado en base de datos para token: ${emailLimpio}`);
             return res.status(404).json({ error: 'Usuario no encontrado en el sistema' });
         }
 
         const usuario = userQuery.rows[0];
+        console.log(`✅ [Backend] Usuario encontrado (ID: ${usuario.id_usuario}, Rol: ${usuario.nombre_rol}). Actualizando token FCM...`);
 
         // 3. Actualizar el token FCM en la tabla usuario para CUALQUIER rol que haya iniciado sesión
         const resultado = await pool.query(
@@ -40,13 +47,16 @@ router.post('/token', async (req, res) => {
             [fcm_token.trim(), usuario.id_usuario]
         );
 
+        console.log(`🎉 [Backend] Token FCM actualizado exitosamente para el usuario ID: ${usuario.id_usuario}`);
+
         res.status(200).json({
             mensaje: 'Token FCM registrado correctamente',
             data: resultado.rows[0],
         });
 
     } catch (error) {
-        console.error('Error en POST /api/notificaciones/token:', error.message);
+        console.error('🔥 [Backend] Error crítico en POST /api/notificaciones/token:', error.message);
+        console.error(error.stack);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
@@ -54,13 +64,18 @@ router.post('/token', async (req, res) => {
 // 2. Disparar notificación de nueva venta a los administradores y almaceneros del mismo inventario
 // Petición: POST /api/notificaciones/enviar-venta
 router.post('/enviar-venta', async (req, res) => {
+    console.log('📥 [Backend] POST /api/notificaciones/enviar-venta - Solicitud recibida');
+    console.log('📦 [Backend] Body recibido:', req.body);
+
     const { id_inventario, email_usuario, total_venta } = req.body;
 
     if (!id_inventario || !email_usuario || total_venta === undefined) {
+        console.log('⚠️ [Backend] Validación fallida en /enviar-venta: Faltan campos obligatorios');
         return res.status(400).json({ error: 'Faltan campos obligatorios (id_inventario, email_usuario o total_venta)' });
     }
 
     const emailLimpio = email_usuario.trim().toLowerCase();
+    console.log(`🔍 [Backend] Procesando venta para inventario ID: ${id_inventario} realizada por: ${emailLimpio}`);
 
     try {
         // 1. Obtener el nombre del usuario que realizó la venta
@@ -74,6 +89,8 @@ router.post('/enviar-venta', async (req, res) => {
                 ? usuarioVentaQuery.rows[0].nombre.split(' ')[0] // Opcional: solo el primer nombre
                 : 'Un usuario'
             : 'Un usuario';
+        
+        console.log(`👤 [Backend] Vendedor identificado: ${nombreVendedor}`);
 
         // 2. Buscar los tokens FCM de Administradores y Almaceneros del MISMO INVENTARIO (excluyendo al emisor)
         const queryDestinatarios = `
@@ -91,7 +108,10 @@ router.post('/enviar-venta', async (req, res) => {
         const resultado = await pool.query(queryDestinatarios, [emailLimpio, id_inventario]);
         const tokensDestinatarios = resultado.rows.map(row => row.fcm_token);
 
+        console.log(`🎯 [Backend] Tokens destinatarios encontrados: ${tokensDestinatarios.length}`);
+
         if (tokensDestinatarios.length === 0) {
+            console.log('ℹ️ [Backend] No hay otros administradores o almaceneros con token activo en este inventario.');
             return res.status(200).json({ mensaje: 'No hay otros administradores o almaceneros con token activo en este inventario.' });
         }
 
@@ -119,7 +139,9 @@ router.post('/enviar-venta', async (req, res) => {
             },
         };
 
+        console.log('🚀 [Backend] Enviando notificaciones mediante Firebase Cloud Messaging...');
         const respuestaAdmin = await admin.messaging().sendEachForMulticast(mensaje);
+        console.log(`✅ [Backend] Firebase envió las notificaciones. Exitosas: ${respuestaAdmin.successCount}, Fallidas: ${respuestaAdmin.failureCount}`);
 
         res.status(200).json({
             mensaje: 'Proceso de notificación finalizado',
@@ -128,7 +150,8 @@ router.post('/enviar-venta', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error en POST /api/notificaciones/enviar-venta:', error.message);
+        console.error('🔥 [Backend] Error crítico en POST /api/notificaciones/enviar-venta:', error.message);
+        console.error(error.stack);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
