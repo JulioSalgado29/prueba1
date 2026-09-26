@@ -1,23 +1,18 @@
-const admin = require('firebase-admin');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 const serviceAccount = require('./serviceAccountKey.json');
 
-let messaging;
+let app;
 
-try {
-    // Intentamos inicializar la app por defecto de forma segura
-    const app = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+// Inicialización segura con los submódulos modernos
+if (!getApps().length) {
+    app = initializeApp({
+        credential: cert(serviceAccount)
     });
-    messaging = admin.messaging(app);
-} catch (error) {
-    // Si ya existe una app inicializada, la obtenemos sin lanzar excepciones
-    if (/already exists/.test(error.message)) {
-        const existingApp = admin.app();
-        messaging = admin.messaging(existingApp);
-    } else {
-        console.error('Error crítico al inicializar Firebase Admin:', error);
-        throw error;
-    }
+} else {
+    app = getApps()[0];
 }
 
-module.exports = { admin, messaging };
+const messaging = getMessaging(app);
+
+module.exports = { messaging };
