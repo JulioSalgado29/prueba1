@@ -203,9 +203,9 @@ router.post('/', async (req, res) => {
         muestra = false
     } = req.body;
 
-    console.log('probandoaca')
-
     const client = await pool.connect();
+
+    console.log('pruebaaca')
 
     try {
         await client.query('BEGIN');
