@@ -205,8 +205,6 @@ router.post('/', async (req, res) => {
 
     const client = await pool.connect();
 
-    console.error('pruebaaca')
-
     try {
         await client.query('BEGIN');
 

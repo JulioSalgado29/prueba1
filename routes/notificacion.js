@@ -1,17 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
-const admin = require('firebase-admin'); // Asegúrate de tener configurado firebase-admin en tu proyecto
+const pool = require('../db'); 
+const admin = require('firebase-admin');
 
 // 1. Guardar o actualizar el Token FCM del dispositivo del Administrador
-// Petición: POST /api/notificaciones/token
 router.post('/token', async (req, res) => {
     console.log('📥 [Backend] POST /api/notificaciones/token - Solicitud recibida');
     console.log('📦 [Backend] Body recibido:', req.body);
 
     const { email_usuario, fcm_token } = req.body;
 
-    // 1. Validación rápida obligatoria
     if (!email_usuario || !fcm_token || fcm_token.trim() === '') {
         console.log('⚠️ [Backend] Validación fallida en /token: Faltan campos obligatorios');
         return res.status(400).json({ error: 'Faltan campos obligatorios (email o token)' });
@@ -21,7 +19,6 @@ router.post('/token', async (req, res) => {
     console.log(`🔍 [Backend] Buscando usuario para token con email: ${emailLimpio}`);
 
     try {
-        // 2. Verificar que el usuario exista en el sistema (sin restringir el rol aquí)
         const userQuery = await pool.query(
             `SELECT u.id_usuario, u.email, r.nombre_rol 
              FROM usuario u 
@@ -38,7 +35,6 @@ router.post('/token', async (req, res) => {
         const usuario = userQuery.rows[0];
         console.log(`✅ [Backend] Usuario encontrado (ID: ${usuario.id_usuario}, Rol: ${usuario.nombre_rol}). Actualizando token FCM...`);
 
-        // 3. Actualizar el token FCM en la tabla usuario para CUALQUIER rol que haya iniciado sesión
         const resultado = await pool.query(
             `UPDATE usuario 
              SET fcm_token = $1 
@@ -62,7 +58,6 @@ router.post('/token', async (req, res) => {
 });
 
 // 2. Disparar notificación de nueva venta a los administradores y almaceneros del mismo inventario
-// Petición: POST /api/notificaciones/enviar-venta
 router.post('/enviar-venta', async (req, res) => {
     console.log('📥 [Backend] POST /api/notificaciones/enviar-venta - Solicitud recibida');
     console.log('📦 [Backend] Body recibido:', req.body);
@@ -78,7 +73,6 @@ router.post('/enviar-venta', async (req, res) => {
     console.log(`🔍 [Backend] Procesando venta para inventario ID: ${id_inventario} realizada por: ${emailLimpio}`);
 
     try {
-        // 1. Obtener el nombre del usuario que realizó la venta
         const usuarioVentaQuery = await pool.query(
             `SELECT nombre FROM usuario WHERE LOWER(email) = $1`,
             [emailLimpio]
@@ -86,13 +80,12 @@ router.post('/enviar-venta', async (req, res) => {
 
         const nombreVendedor = usuarioVentaQuery.rows.length > 0
             ? usuarioVentaQuery.rows[0].nombre
-                ? usuarioVentaQuery.rows[0].nombre.split(' ')[0] // Opcional: solo el primer nombre
+                ? usuarioVentaQuery.rows[0].nombre.split(' ')[0] 
                 : 'Un usuario'
             : 'Un usuario';
         
         console.log(`👤 [Backend] Vendedor identificado: ${nombreVendedor}`);
 
-        // 2. Buscar los tokens FCM de Administradores y Almaceneros del MISMO INVENTARIO (excluyendo al emisor)
         const queryDestinatarios = `
       SELECT u.id_usuario, u.email, u.fcm_token 
       FROM usuario u 
@@ -115,7 +108,6 @@ router.post('/enviar-venta', async (req, res) => {
             return res.status(200).json({ mensaje: 'No hay otros administradores o almaceneros con token activo en este inventario.' });
         }
 
-        // 3. Estructurar el mensaje incluyendo el nombre del vendedor
         const mensaje = {
             notification: {
                 title: '¡Nueva Venta Registrada! 💰',
@@ -140,7 +132,11 @@ router.post('/enviar-venta', async (req, res) => {
         };
 
         console.log('🚀 [Backend] Enviando notificaciones mediante Firebase Cloud Messaging...');
-        const respuestaAdmin = await admin.messaging().sendEachForMulticast(mensaje);
+        
+        // Uso seguro del servicio de mensajería compatible con versiones modernas de firebase-admin
+        const messaging = admin.messaging();
+        const respuestaAdmin = await messaging.sendEachForMulticast(mensaje);
+        
         console.log(`✅ [Backend] Firebase envió las notificaciones. Exitosas: ${respuestaAdmin.successCount}, Fallidas: ${respuestaAdmin.failureCount}`);
 
         res.status(200).json({
