@@ -8,7 +8,7 @@ const admin = require('firebase-admin'); // Asegúrate de tener configurado fire
 router.post('/token', async (req, res) => {
     const { email_usuario, fcm_token } = req.body;
 
-    // Validación rápida obligatoria
+    // 1. Validación rápida obligatoria
     if (!email_usuario || !fcm_token || fcm_token.trim() === '') {
         return res.status(400).json({ error: 'Faltan campos obligatorios (email o token)' });
     }
@@ -16,12 +16,12 @@ router.post('/token', async (req, res) => {
     const emailLimpio = email_usuario.trim().toLowerCase();
 
     try {
-        // Verificar que el usuario exista y sea Administrador (id_usuario_rol = 2)
+        // 2. Verificar que el usuario exista en el sistema (sin restringir el rol aquí)
         const userQuery = await pool.query(
             `SELECT u.id_usuario, u.email, r.nombre_rol 
-       FROM usuario u 
-       JOIN usuario_rol r ON u.id_usuario_rol = r.id_usuario_rol 
-       WHERE LOWER(u.email) = $1`,
+             FROM usuario u 
+             JOIN usuario_rol r ON u.id_usuario_rol = r.id_usuario_rol 
+             WHERE LOWER(u.email) = $1`,
             [emailLimpio]
         );
 
@@ -31,16 +31,12 @@ router.post('/token', async (req, res) => {
 
         const usuario = userQuery.rows[0];
 
-        if (usuario.nombre_rol !== 'Administrador') {
-            return res.status(403).json({ error: 'Solo los administradores pueden registrar tokens de alerta' });
-        }
-
-        // Actualizar el token FCM en la tabla usuario
+        // 3. Actualizar el token FCM en la tabla usuario para CUALQUIER rol que haya iniciado sesión
         const resultado = await pool.query(
             `UPDATE usuario 
-       SET fcm_token = $1 
-       WHERE id_usuario = $2 
-       RETURNING id_usuario, email, nombre, fcm_token`,
+             SET fcm_token = $1 
+             WHERE id_usuario = $2 
+             RETURNING id_usuario, email, nombre, fcm_token`,
             [fcm_token.trim(), usuario.id_usuario]
         );
 
@@ -48,6 +44,7 @@ router.post('/token', async (req, res) => {
             mensaje: 'Token FCM registrado correctamente',
             data: resultado.rows[0],
         });
+
     } catch (error) {
         console.error('Error en POST /api/notificaciones/token:', error.message);
         res.status(500).json({ error: 'Error interno del servidor' });
