@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db'); 
+const pool = require('../db');
 const { messaging } = require('../firebase'); // <-- Importación centralizada del servicio FCM
 
 // 1. Guardar o actualizar el Token FCM del dispositivo del Administrador
@@ -40,10 +40,15 @@ router.post('/token', async (req, res) => {
 
         // 3. Actualizar el token FCM en la tabla usuario
         const resultado = await pool.query(
-            `UPDATE usuario 
-             SET fcm_token = $1 
-             WHERE id_usuario = $2 
-             RETURNING id_usuario, email, nombre, fcm_token`,
+            `WITH limpiar_anterior AS (
+                UPDATE usuario 
+                SET fcm_token = NULL 
+                WHERE fcm_token = $1 AND id_usuario <> $2
+            )
+            UPDATE usuario 
+            SET fcm_token = $1 
+            WHERE id_usuario = $2 
+            RETURNING id_usuario, email, nombre, fcm_token;`,
             [fcm_token.trim(), usuario.id_usuario]
         );
 
@@ -86,10 +91,10 @@ router.post('/enviar-venta', async (req, res) => {
 
         const nombreVendedor = usuarioVentaQuery.rows.length > 0
             ? usuarioVentaQuery.rows[0].nombre
-                ? usuarioVentaQuery.rows[0].nombre.split(' ')[0] 
+                ? usuarioVentaQuery.rows[0].nombre.split(' ')[0]
                 : 'Un usuario'
             : 'Un usuario';
-        
+
         console.log(`👤 [Backend] Vendedor identificado: ${nombreVendedor}`);
 
         // 2. Buscar los tokens FCM de Administradores y Almaceneros del MISMO INVENTARIO (excluyendo al emisor)
@@ -141,10 +146,10 @@ router.post('/enviar-venta', async (req, res) => {
         };
 
         console.log('🚀 [Backend] Enviando notificaciones mediante Firebase Cloud Messaging...');
-        
+
         // Uso del servicio centralizado `messaging`
         const respuestaAdmin = await messaging.sendEachForMulticast(mensaje);
-        
+
         console.log(`✅ [Backend] Firebase envió las notificaciones. Exitosas: ${respuestaAdmin.successCount}, Fallidas: ${respuestaAdmin.failureCount}`);
 
         res.status(200).json({
