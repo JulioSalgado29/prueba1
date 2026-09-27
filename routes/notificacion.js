@@ -136,7 +136,7 @@ router.post('/enviar-venta', async (req, res) => {
             android: {
                 notification: {
                     sound: 'alerta_calza_app', // Ojo: Nombre exacto SIN .mp3
-                    channelId: 'canal_calza_app', // ID del canal que leerá Android
+                    channelId: 'canal_calza_app_v2', // ID del canal que leerá Android
                     priority: 'high',
                     defaultSound: false,
                 },
