@@ -18,6 +18,7 @@ router.post('/token', async (req, res) => {
     }
 
     const emailLimpio = email_usuario.trim().toLowerCase();
+    const tokenLimpio = fcm_token.trim();
     console.log(`🔍 [Backend] Buscando usuario para token con email: ${emailLimpio}`);
 
     try {
@@ -38,22 +39,23 @@ router.post('/token', async (req, res) => {
         const usuario = userQuery.rows[0];
         console.log(`✅ [Backend] Usuario encontrado (ID: ${usuario.id_usuario}, Rol: ${usuario.nombre_rol}). Actualizando token FCM...`);
 
-        // 3. Actualizar el token FCM en la tabla usuario
         // 3. Limpiar el token si lo tenía otro usuario (excepto el actual)
-        await pool.query(
-                `UPDATE usuario 
-                SET fcm_token = NULL 
-                WHERE fcm_token = $1 AND id_usuario <> $2`,
-            [fcm_token.trim(), usuario.id_usuario]
+        const clearResult = await pool.query(
+            `UPDATE usuario 
+             SET fcm_token = NULL 
+             WHERE fcm_token = $1 AND id_usuario <> $2`,
+            [tokenLimpio, usuario.id_usuario]
         );
+        
+        console.log(`🧹 [Backend] Limpieza de token previo. Filas afectadas en otros usuarios: ${clearResult.rowCount}`);
 
         // 4. Actualizar o asignar el token FCM al usuario actual
         const resultado = await pool.query(
-                `UPDATE usuario 
-                SET fcm_token = $1 
-                WHERE id_usuario = $2 
-                RETURNING id_usuario, email, nombre, fcm_token`,
-            [fcm_token.trim(), usuario.id_usuario]
+            `UPDATE usuario 
+             SET fcm_token = $1 
+             WHERE id_usuario = $2 
+             RETURNING id_usuario, email, nombre, fcm_token`,
+            [tokenLimpio, usuario.id_usuario]
         );
 
         console.log(`🎉 [Backend] Token FCM actualizado exitosamente para el usuario ID: ${usuario.id_usuario}`);
