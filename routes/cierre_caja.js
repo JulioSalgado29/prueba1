@@ -5,16 +5,16 @@ const pool = require('../db');
 // 1. Cierre de caja por Correo (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/correo
 router.post('/correo', async (req, res) => {
-  const { fecha, email_user, usuario, id_inventario } = req.body;
+  const { fecha, fecha_fin, email_user, usuario, id_inventario } = req.body;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado pasando el nuevo parámetro 'usuario' (usuario_creacion usa email_user)
+    // Llamada al SP pasando fecha_fin en el parámetro 5
     await client.query(
-      `CALL sp_guardar_y_reportar_cierre_caja_por_usuario($1, $2, $3, $4, 'c_resumen_financiero_usr', 'c_calzado_cantidad_usr', 'c_detalle_caracteristicas_usr', 'c_tipo_calzado_usr', 'c_metodo_pago_usr')`,
-      [fecha, email_user, usuario || email_user, id_inventario]
+      `CALL sp_guardar_y_reportar_cierre_caja_por_usuario($1, $2, $3, $4, $5, 'c_resumen_financiero_usr', 'c_calzado_cantidad_usr', 'c_detalle_caracteristicas_usr', 'c_tipo_calzado_usr', 'c_metodo_pago_usr')`,
+      [fecha, email_user, usuario || email_user, id_inventario, fecha_fin || null]
     );
 
     // Fetch de los cursores con los nombres internos correctos que define el SP
@@ -46,16 +46,16 @@ router.post('/correo', async (req, res) => {
 // 2. Cierre de caja por ID de Tienda (Ejecuta SP y devuelve cursores/resultados)
 // Petición: POST /api/cierre_caja/tienda
 router.post('/tienda', async (req, res) => {
-  const { fecha, id_tienda, usuario, id_inventario } = req.body;
+  const { fecha, fecha_fin, id_tienda, usuario, id_inventario } = req.body;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // Llamada al procedimiento almacenado por ID de tienda pasando el parámetro de usuario
+    // Llamada al SP por ID de tienda pasando fecha_fin en el parámetro 5
     await client.query(
-      `CALL sp_guardar_y_reportar_cierre_caja_por_tienda($1, $2, $3, $4, 'c_resumen_financiero_tienda', 'c_calzado_cantidad_tienda', 'c_detalle_caracteristicas_tienda', 'c_tipo_calzado_tienda', 'c_metodo_pago_tienda')`,
-      [fecha, id_tienda, usuario, id_inventario]
+      `CALL sp_guardar_y_reportar_cierre_caja_por_tienda($1, $2, $3, $4, $5, 'c_resumen_financiero_tienda', 'c_calzado_cantidad_tienda', 'c_detalle_caracteristicas_tienda', 'c_tipo_calzado_tienda', 'c_metodo_pago_tienda')`,
+      [fecha, id_tienda, usuario, id_inventario, fecha_fin || null]
     );
 
     // Fetch de los cursores con los nombres internos correctos que define el SP
