@@ -126,7 +126,6 @@ router.post('/enviar-venta', async (req, res) => {
             return res.status(200).json({ mensaje: 'No hay otros administradores o almaceneros con token activo en este inventario.' });
         }
 
-        // 3. Estructurar el mensaje
         const mensaje = {
             notification: {
                 title: '¡Nueva Venta Registrada! 💰',
@@ -135,8 +134,8 @@ router.post('/enviar-venta', async (req, res) => {
             tokens: tokensDestinatarios,
             android: {
                 notification: {
-                    sound: 'alerta_calza_app', // Ojo: Nombre exacto SIN .mp3
-                    channelId: 'canal_calza_app_v2', // ID del canal que leerá Android
+                    sound: 'alerta_calza_app', // 🔹 Sin extensión para Android
+                    channelId: 'canal_calza_app_v2', 
                     priority: 'high',
                     defaultSound: false,
                 },
@@ -144,7 +143,7 @@ router.post('/enviar-venta', async (req, res) => {
             apns: {
                 payload: {
                     aps: {
-                        sound: 'default',
+                        sound: 'alerta_calza_app.mp3', // 🔹 Con extensión para iOS
                         badge: 1,
                     },
                 },
