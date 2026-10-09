@@ -143,7 +143,7 @@ router.post('/enviar-venta', async (req, res) => {
             android: {
                 priority: 'high',
                 notification: {
-                    channelId: 'canal_calza_app_v3', // IGUAL que kCanalId en Flutter
+                    channelId: 'canal_calza_app_final', // IGUAL que kCanalId en Flutter
                     sound: 'alerta_calza_app',       // res/raw/alerta_calza_app.mp3 (sin extensión)
                 },
             },
