@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// 1. Cierre de caja por Correo (Ejecuta SP y devuelve cursores/resultados)
+// 1. Cierre de caja por Correo (Ejecuta SP y devuelve cursores/resultados incluyendo fecha_fin)
 // Petición: POST /api/cierre_caja/correo
 router.post('/correo', async (req, res) => {
   const { fecha, fecha_fin, email_user, usuario, id_inventario } = req.body;
@@ -11,7 +11,7 @@ router.post('/correo', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Llamada al SP pasando fecha_fin en el parámetro 5
+    // Llamada al SP pasando fecha_fin en el parámetro 5 (se enviará fecha o null)
     await client.query(
       `CALL sp_guardar_y_reportar_cierre_caja_por_usuario($1, $2, $3, $4, $5, 'c_resumen_financiero_usr', 'c_calzado_cantidad_usr', 'c_detalle_caracteristicas_usr', 'c_tipo_calzado_usr', 'c_metodo_pago_usr')`,
       [fecha, email_user, usuario || email_user, id_inventario, fecha_fin || null]
@@ -28,7 +28,7 @@ router.post('/correo', async (req, res) => {
 
     res.json({
       mensaje: 'Cierre de caja por vendedor realizado y guardado correctamente',
-      resumen_financiero: resResumen.rows,
+      resumen_financiero: resResumen.rows, // Incluirá fecha_fin si se registró como rango
       calzado_cantidad: resCalzado.rows,
       detalle_caracteristicas: resCaracteristicas.rows,
       tipo_calzado: resTipoCalzado.rows,
@@ -43,7 +43,7 @@ router.post('/correo', async (req, res) => {
   }
 });
 
-// 2. Cierre de caja por ID de Tienda (Ejecuta SP y devuelve cursores/resultados)
+// 2. Cierre de caja por ID de Tienda (Ejecuta SP y devuelve cursores/resultados incluyendo fecha_fin)
 // Petición: POST /api/cierre_caja/tienda
 router.post('/tienda', async (req, res) => {
   const { fecha, fecha_fin, id_tienda, usuario, id_inventario } = req.body;
@@ -69,7 +69,7 @@ router.post('/tienda', async (req, res) => {
 
     res.json({
       mensaje: 'Cierre de caja por tienda realizado y guardado correctamente',
-      resumen_financiero: resResumen.rows,
+      resumen_financiero: resResumen.rows, // Incluirá fecha_fin si se registró como rango
       calzado_cantidad: resCalzado.rows,
       detalle_caracteristicas: resCaracteristicas.rows,
       tipo_calzado: resTipoCalzado.rows,
@@ -84,12 +84,11 @@ router.post('/tienda', async (req, res) => {
   }
 });
 
-// Listar todos los registros generales de cierre de caja
+// Listar todos los registros generales de cierre de caja (Incluye fecha_fin en cada objeto de la lista)
 // Petición: GET /api/cierre_caja/listar
 router.get('/listar', async (req, res) => {
   const { id_inventario } = req.query;
 
-  // Validación opcional por si es obligatorio
   if (!id_inventario) {
     return res.status(400).json({ error: 'El parámetro id_inventario es obligatorio' });
   }
@@ -105,7 +104,7 @@ router.get('/listar', async (req, res) => {
     const resultado = await client.query('FETCH ALL FROM c_cierres');
 
     await client.query('COMMIT');
-    res.json(resultado.rows);
+    res.json(resultado.rows); // Cada fila ahora mapeará la propiedad fecha_fin
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error en GET /api/cierre_caja/listar:', error.message);
@@ -135,7 +134,7 @@ router.get('/inventario/:id', async (req, res) => {
   }
 });
 
-// 4. Obtener toda la información de un cierre de caja por su ID específico
+// 4. Obtener toda la información de un cierre de caja por su ID específico (Incluye fecha_fin en resumen_financiero)
 // Petición: GET /api/cierre_caja/detalle/:id
 router.get('/detalle/:id', async (req, res) => {
   const { id } = req.params;
@@ -161,7 +160,7 @@ router.get('/detalle/:id', async (req, res) => {
 
     res.json({
       mensaje: 'Cierre de caja obtenido correctamente por ID',
-      resumen_financiero: resResumen.rows,
+      resumen_financiero: resResumen.rows, // Incluirá fecha_fin dentro de sus propiedades
       calzado_cantidad: resCalzado.rows,
       detalle_caracteristicas: resCaracteristicas.rows,
       tipo_calzado: resTipoCalzado.rows,
