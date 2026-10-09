@@ -151,7 +151,7 @@ router.post('/enviar-venta', async (req, res) => {
                 headers: { 'apns-priority': '10' },
                 payload: {
                     aps: {
-                        sound: 'alerta_calza_app.mp3', // debe estar en el bundle de iOS
+                        sound: 'alerta_calza_app.wav', // debe estar en el bundle de iOS
                         badge: 1,
                     },
                 },
