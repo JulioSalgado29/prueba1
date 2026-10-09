@@ -19,6 +19,7 @@ const gastoRoutes = require('./routes/gasto');
 const cierreCajaRoutes = require('./routes/cierre_caja');
 const stockRoutes = require('./routes/stock');
 const notificacionRoutes = require('./routes/notificacion');
+const homeRoutes = require('./routes/home');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -47,6 +48,7 @@ app.use('/api/gasto', gastoRoutes);
 app.use('/api/cierre_caja', cierreCajaRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/notificacion', notificacionRoutes);
+app.use('/api/home', homeRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
