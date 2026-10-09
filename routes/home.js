@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
 
 router.post('/administrador', async (req, res) => {
-  const { id_inventario } = req.body;
+  const id_inventario = req.body.id_inventario ? Number(req.body.id_inventario) : null;
   const client = await pool.connect();
 
   try {
