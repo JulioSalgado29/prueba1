@@ -19,7 +19,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
       FROM tienda
       WHERE estado = true AND 
             id_inventario = $1
-      ORDER BY nombre DESC`,
+      ORDER BY nombre ASC`,
       [id_inventario]
     );
     res.json(resultado.rows);
@@ -46,7 +46,7 @@ router.get('/:id', async (req, res) => {
       FROM tienda
       WHERE estado = true AND 
             id_tienda = $1
-      ORDER BY nombre DESC`,
+      ORDER BY nombre ASC`,
       [id]
     );
     res.json(resultado.rows);
