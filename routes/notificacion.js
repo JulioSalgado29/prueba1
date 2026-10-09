@@ -127,23 +127,24 @@ router.post('/enviar-venta', async (req, res) => {
         }
 
         const mensaje = {
-            notification: {
+            // Usamos 'data' para que la app en Flutter reciba el mensaje en segundo plano o primer plano y lo procese manualmente
+            data: {
                 title: '¡Nueva Venta Registrada! 💰',
                 body: `${nombreVendedor} registró una venta por S/ ${total_venta}.`,
             },
             tokens: tokensDestinatarios,
             android: {
+                priority: 'high',
+                // Es obligatorio definir el canal aquí también para que Android sepa a qué canal asociarlo
                 notification: {
-                    sound: 'alerta_calza_app', // 🔹 Sin extensión para Android
-                    channelId: 'canal_calza_app_v2', 
-                    priority: 'high',
-                    defaultSound: false,
+                    channelId: 'canal_calza_app_Silbido', // O cámbialo a 'canal_calza_app_v3' si vas a forzar la recreación del canal
+                    sound: 'alerta_calza_app',
                 },
             },
             apns: {
                 payload: {
                     aps: {
-                        sound: 'alerta_calza_app.mp3', // 🔹 Con extensión para iOS
+                        sound: 'alerta_calza_app.mp3',
                         badge: 1,
                     },
                 },
