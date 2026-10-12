@@ -80,7 +80,7 @@ router.get('/:id', async (req, res) => {
 // 3. Insertar gasto
 // Petición: POST /api/gasto
 router.post('/', async (req, res) => {
-  const { email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion } = req.body;
+  const { email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion, fecha_creacion } = req.body;
 
   // Validación rápida obligatoria para id_tienda, monto y descripción
   if (!id_tienda || !monto || !descripcion || descripcion.trim() === '') {
@@ -90,12 +90,27 @@ router.post('/', async (req, res) => {
   const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : 'anon';
 
   try {
-    const nuevo = await pool.query(
-      `INSERT INTO gasto (email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING *`,
-      [emailLimpio, id_inventario, id_tienda, monto, descripcion.trim(), usuario_creacion]
-    );
+    let queryText;
+    let queryValues;
+
+    // Si viene fecha_creacion personalizada, la incluimos; si no, dejamos que la BD use la hora actual
+    if (fecha_creacion && fecha_creacion.trim() !== '') {
+      queryText = `
+        INSERT INTO gasto (email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion, fecha_creacion) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7) 
+        RETURNING *
+      `;
+      queryValues = [emailLimpio, id_inventario, id_tienda, monto, descripcion.trim(), usuario_creacion, fecha_creacion];
+    } else {
+      queryText = `
+        INSERT INTO gasto (email_usuario, id_inventario, id_tienda, monto, descripcion, usuario_creacion) 
+        VALUES ($1, $2, $3, $4, $5, $6) 
+        RETURNING *
+      `;
+      queryValues = [emailLimpio, id_inventario, id_tienda, monto, descripcion.trim(), usuario_creacion];
+    }
+
+    const nuevo = await pool.query(queryText, queryValues);
 
     res.status(201).json(nuevo.rows[0]);
   } catch (error) {
@@ -108,7 +123,7 @@ router.post('/', async (req, res) => {
 // Petición: PUT /api/gasto/:id
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { email_usuario, id_tienda, monto, descripcion, usuario_creacion } = req.body;
+  const { email_usuario, id_tienda, monto, descripcion, usuario_creacion, fecha_creacion } = req.body;
 
   // Validación rápida obligatoria
   if (!id_tienda || !monto || !descripcion || descripcion.trim() === '') {
@@ -118,13 +133,26 @@ router.put('/:id', async (req, res) => {
   const emailLimpio = email_usuario ? email_usuario.trim().toLowerCase() : 'anon';
 
   try {
-    const resultado = await pool.query(
-      `UPDATE gasto 
-       SET email_usuario = $1, id_tienda = $2, monto = $3, descripcion = $4, usuario_creacion = $5 
-       WHERE id_gasto = $6 
-       RETURNING *`,
-      [emailLimpio, id_tienda, monto, descripcion.trim(), usuario_creacion, id]
-    );
+    let resultado;
+
+    // Si se envió una fecha personalizada, actualizamos también fecha_creacion, de lo contrario la respetamos tal cual está
+    if (fecha_creacion && fecha_creacion.trim() !== '') {
+      resultado = await pool.query(
+        `UPDATE gasto 
+         SET email_usuario = $1, id_tienda = $2, monto = $3, descripcion = $4, usuario_creacion = $5, fecha_creacion = $6 
+         WHERE id_gasto = $7 
+         RETURNING *`,
+        [emailLimpio, id_tienda, monto, descripcion.trim(), usuario_creacion, fecha_creacion, id]
+      );
+    } else {
+      resultado = await pool.query(
+        `UPDATE gasto 
+         SET email_usuario = $1, id_tienda = $2, monto = $3, descripcion = $4, usuario_creacion = $5 
+         WHERE id_gasto = $6 
+         RETURNING *`,
+        [emailLimpio, id_tienda, monto, descripcion.trim(), usuario_creacion, id]
+      );
+    }
 
     if (resultado.rows.length === 0) {
       return res.status(404).json({ error: 'Gasto no encontrado' });
