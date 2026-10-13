@@ -505,7 +505,7 @@ router.put('/:id_fila_venta', async (req, res) => {
                         plataforma = $6,
                         precio_venta_total = $7,
                         taco = $8,
-                        talla = $9,
+                        talla = $9
                     WHERE id_venta = $10`,
                     [
                         id_calzado, cantidad, colores, lugar_venta,
