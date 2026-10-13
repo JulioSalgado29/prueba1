@@ -53,7 +53,7 @@ router.get('/inventario/:id_inventario', async (req, res) => {
             queryParams.push(fecha);
         }
 
-        queryText += ` ORDER BY fv.fecha_creacion DESC`;
+        queryText += ` ORDER BY fv.fecha_venta DESC`;
 
         const resultado = await pool.query(queryText, queryParams);
         res.json(resultado.rows);
