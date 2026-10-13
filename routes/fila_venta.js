@@ -486,12 +486,12 @@ router.put('/:id_fila_venta', async (req, res) => {
                         precio_venta_total = $7,
                         taco = $8,
                         talla = $9,
-                        fecha_venta = $11
-                    WHERE id_venta = $12`,
+                        fecha_venta = $10
+                    WHERE id_venta = $11`,
                     [
                         id_calzado, cantidad, colores, lugar_venta,
                         metodo_pago, plataforma, precio_venta_total, taco,
-                        talla, usuario_creacion, fecha_venta, ventaAntigua.id_venta
+                        talla, fecha_venta, ventaAntigua.id_venta
                     ]
                 );
             } else {
@@ -506,11 +506,11 @@ router.put('/:id_fila_venta', async (req, res) => {
                         precio_venta_total = $7,
                         taco = $8,
                         talla = $9,
-                    WHERE id_venta = $11`,
+                    WHERE id_venta = $10`,
                     [
                         id_calzado, cantidad, colores, lugar_venta,
                         metodo_pago, plataforma, precio_venta_total, taco,
-                        talla, usuario_creacion, ventaAntigua.id_venta
+                        talla, ventaAntigua.id_venta
                     ]
                 );
             }
@@ -532,14 +532,14 @@ router.put('/:id_fila_venta', async (req, res) => {
                     metodo_pago = $9,
                     lugar_venta = $10,
                     id_tienda = $11,
-                    email_user = $13,
-                    fecha_venta = $14
-                WHERE id_fila_venta = $15
+                    email_user = $12,
+                    fecha_venta = $13
+                WHERE id_fila_venta = $14
                 RETURNING *`,
                 [
                     id_inventario, id_calzado, cantidad, talla, colores,
                     taco, plataforma, precio_venta_total, metodo_pago,
-                    lugar_venta, id_tienda, usuario_creacion, email_user, fecha_venta, id_fila_venta
+                    lugar_venta, id_tienda, email_user, fecha_venta, id_fila_venta
                 ]
             );
         } else {
@@ -556,13 +556,13 @@ router.put('/:id_fila_venta', async (req, res) => {
                     metodo_pago = $9,
                     lugar_venta = $10,
                     id_tienda = $11,
-                    email_user = $13
-                WHERE id_fila_venta = $14
+                    email_user = $12
+                WHERE id_fila_venta = $13
                 RETURNING *`,
                 [
                     id_inventario, id_calzado, cantidad, talla, colores,
                     taco, plataforma, precio_venta_total, metodo_pago,
-                    lugar_venta, id_tienda, usuario_creacion, email_user, id_fila_venta
+                    lugar_venta, id_tienda, email_user, id_fila_venta
                 ]
             );
         }
