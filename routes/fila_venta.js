@@ -486,7 +486,6 @@ router.put('/:id_fila_venta', async (req, res) => {
                         precio_venta_total = $7,
                         taco = $8,
                         talla = $9,
-                        usuario_creacion = $10,
                         fecha_venta = $11
                     WHERE id_venta = $12`,
                     [
@@ -507,7 +506,6 @@ router.put('/:id_fila_venta', async (req, res) => {
                         precio_venta_total = $7,
                         taco = $8,
                         talla = $9,
-                        usuario_creacion = $10
                     WHERE id_venta = $11`,
                     [
                         id_calzado, cantidad, colores, lugar_venta,
@@ -534,7 +532,6 @@ router.put('/:id_fila_venta', async (req, res) => {
                     metodo_pago = $9,
                     lugar_venta = $10,
                     id_tienda = $11,
-                    usuario_creacion = $12,
                     email_user = $13,
                     fecha_venta = $14
                 WHERE id_fila_venta = $15
@@ -559,7 +556,6 @@ router.put('/:id_fila_venta', async (req, res) => {
                     metodo_pago = $9,
                     lugar_venta = $10,
                     id_tienda = $11,
-                    usuario_creacion = $12,
                     email_user = $13
                 WHERE id_fila_venta = $14
                 RETURNING *`,
