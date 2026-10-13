@@ -196,7 +196,7 @@ router.post('/', async (req, res) => {
         precio_venta_total,
         metodo_pago,
         lugar_venta,
-        id_tienda, // 🔹 Recibimos id_tienda del req.body
+        id_tienda,
         fecha_venta,
         usuario_creacion,
         email_user,
@@ -208,7 +208,9 @@ router.post('/', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // A. Insertar en tabla `venta` (sin id_tienda)
+        const fechaFinalVenta = (fecha_venta && fecha_venta.trim() !== '') ? fecha_venta : new Date();
+
+        // A. Insertar en tabla `venta`
         const ventaRes = await client.query(
             `INSERT INTO venta (
                 id_calzado,
@@ -228,7 +230,7 @@ router.post('/', async (req, res) => {
                 id_calzado,
                 cantidad,
                 colores,
-                fecha_venta || new Date(),
+                fechaFinalVenta,
                 lugar_venta,
                 metodo_pago,
                 plataforma,
@@ -241,7 +243,7 @@ router.post('/', async (req, res) => {
 
         const id_venta = ventaRes.rows[0].id_venta;
 
-        // B. Insertar en tabla `fila_venta` (AQUÍ SÍ se incluye id_tienda)
+        // B. Insertar en tabla `fila_venta`
         const columnsFila = [
             'id_venta',
             'id_inventario',
@@ -255,7 +257,7 @@ router.post('/', async (req, res) => {
             'precio_venta_total',
             'metodo_pago',
             'lugar_venta',
-            'id_tienda', // 🔹 Columna solo en fila_venta
+            'id_tienda',
             'usuario_creacion',
             'email_user',
             'fecha_venta'
@@ -274,10 +276,10 @@ router.post('/', async (req, res) => {
             precio_venta_total,
             metodo_pago,
             lugar_venta,
-            id_tienda || null, // 🔹 Asigna id_tienda o NULL si no viene definido
+            id_tienda || null,
             usuario_creacion,
             email_user,
-            fecha_venta || new Date()
+            fechaFinalVenta
         ];
 
         if (descripcion_muestra !== null && descripcion_muestra !== undefined) {
@@ -346,7 +348,8 @@ router.put('/:id_fila_venta', async (req, res) => {
         precio_venta_total,
         metodo_pago,
         lugar_venta,
-        id_tienda = null, // <-- 1. Extraer id_tienda del req.body
+        id_tienda = null,
+        fecha_venta,
         usuario_creacion,
         email_user
     } = req.body;
@@ -471,51 +474,102 @@ router.put('/:id_fila_venta', async (req, res) => {
 
         // D. Actualizar `venta` (tabla principal)
         if (ventaAntigua.id_venta) {
-            await client.query(
-                `UPDATE venta SET
-                    id_calzado = $1,
-                    cantidad = $2,
-                    colores = $3,
-                    lugar_venta = $4,
-                    metodo_pago = $5,
-                    plataforma = $6,
-                    precio_venta_total = $7,
-                    taco = $8,
-                    talla = $9,
-                    usuario_creacion = $10
-                WHERE id_venta = $11`,
+            if (fecha_venta && fecha_venta.trim() !== '') {
+                await client.query(
+                    `UPDATE venta SET
+                        id_calzado = $1,
+                        cantidad = $2,
+                        colores = $3,
+                        lugar_venta = $4,
+                        metodo_pago = $5,
+                        plataforma = $6,
+                        precio_venta_total = $7,
+                        taco = $8,
+                        talla = $9,
+                        usuario_creacion = $10,
+                        fecha_venta = $11
+                    WHERE id_venta = $12`,
+                    [
+                        id_calzado, cantidad, colores, lugar_venta,
+                        metodo_pago, plataforma, precio_venta_total, taco,
+                        talla, usuario_creacion, fecha_venta, ventaAntigua.id_venta
+                    ]
+                );
+            } else {
+                await client.query(
+                    `UPDATE venta SET
+                        id_calzado = $1,
+                        cantidad = $2,
+                        colores = $3,
+                        lugar_venta = $4,
+                        metodo_pago = $5,
+                        plataforma = $6,
+                        precio_venta_total = $7,
+                        taco = $8,
+                        talla = $9,
+                        usuario_creacion = $10
+                    WHERE id_venta = $11`,
+                    [
+                        id_calzado, cantidad, colores, lugar_venta,
+                        metodo_pago, plataforma, precio_venta_total, taco,
+                        talla, usuario_creacion, ventaAntigua.id_venta
+                    ]
+                );
+            }
+        }
+
+        // E. Actualizar `fila_venta` (Se maneja fecha_venta opcional)
+        let filaVentaActualizada;
+        if (fecha_venta && fecha_venta.trim() !== '') {
+            filaVentaActualizada = await client.query(
+                `UPDATE fila_venta SET
+                    id_inventario = $1,
+                    id_calzado = $2,
+                    cantidad = $3,
+                    talla = $4,
+                    colores = $5,
+                    taco = $6,
+                    plataforma = $7,
+                    precio_venta_total = $8,
+                    metodo_pago = $9,
+                    lugar_venta = $10,
+                    id_tienda = $11,
+                    usuario_creacion = $12,
+                    email_user = $13,
+                    fecha_venta = $14
+                WHERE id_fila_venta = $15
+                RETURNING *`,
                 [
-                    id_calzado, cantidad, colores, lugar_venta,
-                    metodo_pago, plataforma, precio_venta_total, taco,
-                    talla, usuario_creacion, ventaAntigua.id_venta
+                    id_inventario, id_calzado, cantidad, talla, colores,
+                    taco, plataforma, precio_venta_total, metodo_pago,
+                    lugar_venta, id_tienda, usuario_creacion, email_user, fecha_venta, id_fila_venta
+                ]
+            );
+        } else {
+            filaVentaActualizada = await client.query(
+                `UPDATE fila_venta SET
+                    id_inventario = $1,
+                    id_calzado = $2,
+                    cantidad = $3,
+                    talla = $4,
+                    colores = $5,
+                    taco = $6,
+                    plataforma = $7,
+                    precio_venta_total = $8,
+                    metodo_pago = $9,
+                    lugar_venta = $10,
+                    id_tienda = $11,
+                    usuario_creacion = $12,
+                    email_user = $13
+                WHERE id_fila_venta = $14
+                RETURNING *`,
+                [
+                    id_inventario, id_calzado, cantidad, talla, colores,
+                    taco, plataforma, precio_venta_total, metodo_pago,
+                    lugar_venta, id_tienda, usuario_creacion, email_user, id_fila_venta
                 ]
             );
         }
-
-        // E. Actualizar `fila_venta` (Se agrega id_tienda)
-        const filaVentaActualizada = await client.query(
-            `UPDATE fila_venta SET
-                id_inventario = $1,
-                id_calzado = $2,
-                cantidad = $3,
-                talla = $4,
-                colores = $5,
-                taco = $6,
-                plataforma = $7,
-                precio_venta_total = $8,
-                metodo_pago = $9,
-                lugar_venta = $10,
-                id_tienda = $11,
-                usuario_creacion = $12,
-                email_user = $13
-            WHERE id_fila_venta = $14
-            RETURNING *`,
-            [
-                id_inventario, id_calzado, cantidad, talla, colores,
-                taco, plataforma, precio_venta_total, metodo_pago,
-                lugar_venta, id_tienda, usuario_creacion, email_user, id_fila_venta
-            ]
-        );
 
         await client.query('COMMIT');
         res.json({

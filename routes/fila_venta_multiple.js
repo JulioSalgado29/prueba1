@@ -140,12 +140,12 @@ router.post('/batch', async (req, res) => {
                 precio_venta_total,
                 metodo_pago,
                 lugar_venta,
-                id_tienda = null, // <-- Extraer id_tienda
+                id_tienda = null,
                 fecha_venta,
                 id_dueno_muestra = null
             } = item;
 
-            const fechaFinal = fecha_venta || new Date();
+            const fechaFinal = (fecha_venta && fecha_venta.trim() !== '') ? fecha_venta : new Date();
 
             // A. Insertar en tabla `venta`
             const ventaRes = await client.query(
@@ -180,7 +180,7 @@ router.post('/batch', async (req, res) => {
 
             const id_venta = ventaRes.rows[0].id_venta;
 
-            // B. Insertar en tabla `fila_venta` (se agrega id_tienda)
+            // B. Insertar en tabla `fila_venta`
             const filaVentaRes = await client.query(
                 `INSERT INTO fila_venta (
                     id_venta,
@@ -213,11 +213,11 @@ router.post('/batch', async (req, res) => {
                     precio_venta_total,
                     metodo_pago,
                     lugar_venta,
-                    id_tienda, // <-- $12
-                    usuario_creacion, // <-- $13
-                    email_user, // <-- $14
-                    fechaFinal, // <-- $15
-                    id_dueno_muestra // <-- $16
+                    id_tienda,
+                    usuario_creacion,
+                    email_user,
+                    fechaFinal,
+                    id_dueno_muestra
                 ]
             );
 
@@ -281,5 +281,4 @@ router.post('/batch', async (req, res) => {
         client.release();
     }
 });
-
 module.exports = router;
