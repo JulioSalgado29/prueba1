@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { 
-  S3Client, 
-  PutObjectCommand, 
-  ListObjectsV2Command, 
-  DeleteObjectsCommand 
+const {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
 // Configuración del Cliente AWS S3
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const s3Client = new S3Client({ 
+const s3Client = new S3Client({
   region: REGION,
   useAccelerateEndpoint: true, // ⚡ Activa el endpoint de velocidad optimizada
 });
@@ -60,9 +60,9 @@ async function limpiarArchivosAntiguosS3(bucket, prefijoCarpeta, urlsNuevasConse
     // 4. Borrar solo los archivos desactualizados/antiguos
     const deleteCommand = new DeleteObjectsCommand({
       Bucket: bucket,
-      Delete: { 
-        Objects: objectsToDelete, 
-        Quiet: true 
+      Delete: {
+        Objects: objectsToDelete,
+        Quiet: true
       },
     });
 
@@ -117,10 +117,10 @@ router.post('/presigned-url', async (req, res) => {
     // URL pública final del archivo en S3
     const fileUrl = `https://${targetBucket}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileName}`;
 
-    return res.json({ 
-      uploadUrl, 
+    return res.json({
+      uploadUrl,
       fileUrl,
-      key: fileName 
+      key: fileName
     });
   } catch (error) {
     console.error('Error generando Presigned URL de S3:', error);
@@ -131,44 +131,47 @@ router.post('/presigned-url', async (req, res) => {
 // 1. Listar calzados activos por inventario
 // Petición: GET /api/calzado/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
-    const { id_inventario } = req.params;
-    try {
-        const resultado = await pool.query(
-            `SELECT 
-        id_calzado,
-        nombre,
-        icono,
-        precio_real,
-        taco,
-        plataforma,
-        colores,
-        id_tipo_calzado,
-        usuario_creacion,
-        email_usuario,
-        activo,
-        fecha_creacion,
-        id_inventario,
-        imagenes
-      FROM calzado
-      WHERE activo = true AND 
-            id_inventario = $1
-      ORDER BY fecha_creacion DESC`,
-            [id_inventario]
-        );
-        res.json(resultado.rows);
-    } catch (error) {
-        console.error('Error en GET /api/calzado/inventario:', error.message);
-        res.status(500).json({ error: 'Error interno del servidor' });
-    }
+  const { id_inventario } = req.params;
+  try {
+    const resultado = await pool.query(
+      `SELECT 
+        c.id_calzado,
+        c.nombre,
+        c.icono,
+        c.precio_real,
+        c.taco,
+        c.plataforma,
+        c.colores,
+        c.id_tipo_calzado,
+        c.usuario_creacion,
+        c.email_usuario,
+        c.activo,
+        c.fecha_creacion,
+        c.id_inventario,
+        c.imagenes,
+        COALESCE(fi.cantidad,0) as cantidad
+      FROM calzado c
+      LEFT JOIN fila_inventario fi on c.id_calzado = fi.id_calzado
+      WHERE c.activo = true AND 
+            c.id_inventario = $1
+      ORDER BY c.fecha_creacion DESC;
+`,
+      [id_inventario]
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error('Error en GET /api/calzado/inventario:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // 1.1 Listar calzados activos por inventario
 // Petición: GET /api/calzado/inventario/update/:id_inventario
 router.get('/inventario/update/:id_inventario', async (req, res) => {
-    const { id_inventario } = req.params;
-    try {
-        const resultado = await pool.query(
-            `SELECT 
+  const { id_inventario } = req.params;
+  try {
+    const resultado = await pool.query(
+      `SELECT 
         id_calzado,
         nombre,
         icono,
@@ -187,22 +190,22 @@ router.get('/inventario/update/:id_inventario', async (req, res) => {
       WHERE activo = true AND 
             (id_inventario = $1 OR id_inventario = 0)
       ORDER BY fecha_creacion DESC`,
-            [id_inventario]
-        );
-        res.json(resultado.rows);
-    } catch (error) {
-        console.error('Error en GET /api/calzado/inventario/update:', error.message);
-        res.status(500).json({ error: 'Error interno del servidor' });
-    }
+      [id_inventario]
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error('Error en GET /api/calzado/inventario/update:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // 2. Listar calzados activos por inventario QUE TENGAN COLORES EN TRUE
 // Petición: GET /api/calzado/inventario/:id_inventario/colores
 router.get('/inventario/:id_inventario/colores', async (req, res) => {
-    const { id_inventario } = req.params;
-    try {
-        const resultado = await pool.query(
-            `SELECT 
+  const { id_inventario } = req.params;
+  try {
+    const resultado = await pool.query(
+      `SELECT 
         id_calzado,
         nombre,
         icono,
@@ -222,13 +225,13 @@ router.get('/inventario/:id_inventario/colores', async (req, res) => {
         AND colores = true
         AND id_inventario = $1
       ORDER BY nombre ASC`,
-            [id_inventario]
-        );
-        res.json(resultado.rows);
-    } catch (error) {
-        console.error('Error en GET /api/calzado/inventario/:id_inventario/colores:', error.message);
-        res.status(500).json({ error: 'Error interno del servidor' });
-    }
+      [id_inventario]
+    );
+    res.json(resultado.rows);
+  } catch (error) {
+    console.error('Error en GET /api/calzado/inventario/:id_inventario/colores:', error.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 // Obtener un calzado por ID
@@ -336,9 +339,9 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error detallado al crear calzado:', error.message);
-    return res.status(500).json({ 
-      error: 'Error interno del servidor', 
-      detalle: error.message 
+    return res.status(500).json({
+      error: 'Error interno del servidor',
+      detalle: error.message
     });
   }
 });
@@ -428,9 +431,9 @@ router.put('/:id', async (req, res) => {
     return res.status(200).json({ message: 'Calzado e imágenes actualizados correctamente' });
   } catch (error) {
     console.error('Error detallado al actualizar calzado:', error.message);
-    return res.status(500).json({ 
-      error: 'Error interno del servidor', 
-      detalle: error.message 
+    return res.status(500).json({
+      error: 'Error interno del servidor',
+      detalle: error.message
     });
   }
 });
