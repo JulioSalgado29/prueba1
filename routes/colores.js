@@ -27,23 +27,23 @@ router.get('/inventario/:id_inventario', async (req, res) => {
         col.nombre,
         col.usuario_creacion,
         CASE 
-          WHEN $2 IS NULL THEN false
+          WHEN $2::integer IS NULL THEN false
           ELSE EXISTS (
             SELECT 1 
             FROM calzado cal
-            WHERE cal.id_calzado = $2
+            WHERE cal.id_calzado = $2::integer
               AND cal.activo = true
               AND cal.imagenes IS NOT NULL
               AND EXISTS (
                 SELECT 1 
                 FROM unnest(cal.imagenes) AS img
-                WHERE img ILIKE '%' || $1::text || '/' || cal.nombre || '/' || col.nombre || '%'
+                WHERE img ILIKE '%' || $1::integer::text || '/' || cal.nombre || '/' || col.nombre || '%'
               )
           )
         END AS aparece_en_imagenes
       FROM colores col
       WHERE col.estado = true 
-        AND col.id_inventario = $1
+        AND col.id_inventario = $1::integer
       ORDER BY aparece_en_imagenes DESC, col.nombre ASC`,
       [parsedIdInventario, parsedIdCalzado]
     );
