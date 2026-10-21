@@ -22,4 +22,34 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Obtener plan por inventario (usando sp_obtener_plan_inventario)
+// Petición: POST /api/inventario/plan
+router.post('/plan', async (req, res) => {
+  let { p_id_inventario } = req.body;
+
+  p_id_inventario = Number(p_id_inventario);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `CALL sp_obtener_plan_inventario($1, 'ref_cursor_plan')`,
+      [p_id_inventario]
+    );
+
+    const resultado = await client.query('FETCH ALL FROM ref_cursor_plan;');
+
+    await client.query('COMMIT');
+
+    res.json(resultado.rows);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('DETALLE DEL ERROR SQL (plan):', error.message);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
