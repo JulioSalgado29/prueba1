@@ -87,72 +87,83 @@ router.delete('/:id_fila_venta', async (req, res) => {
                 usuario_creacion
             } = data;
 
-            // A. Buscar o crear la fila_inventario
-            let filaInvRes = await client.query(
-                `SELECT id_fila_inventario 
-         FROM fila_inventario 
-         WHERE id_calzado = $1 AND id_inventario = $2 
-         LIMIT 1`,
-                [id_calzado, id_inventario]
+            // 1. Verificar si el calzado está activo antes de regresar stock al inventario
+            const calzadoRes = await client.query(
+                `SELECT activo FROM calzado WHERE id_calzado = $1 LIMIT 1`,
+                [id_calzado]
             );
 
-            let id_fila_inventario;
+            // Verificamos si el calzado existe y si 'activo' es true
+            const estaActivo = calzadoRes.rows.length > 0 && calzadoRes.rows[0].activo === true;
 
-            if (filaInvRes.rows.length === 0) {
-                const nuevaFilaRes = await client.query(
-                    `INSERT INTO fila_inventario 
-            (id_calzado, id_inventario, cantidad, email_user, usuario_creacion)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id_fila_inventario`,
-                    [id_calzado, id_inventario, cantidad, email_user, usuario_creacion]
+            if (estaActivo) {
+                // A. Buscar o crear la fila_inventario
+                let filaInvRes = await client.query(
+                    `SELECT id_fila_inventario 
+                     FROM fila_inventario 
+                     WHERE id_calzado = $1 AND id_inventario = $2 
+                     LIMIT 1`,
+                    [id_calzado, id_inventario]
                 );
-                id_fila_inventario = nuevaFilaRes.rows[0].id_fila_inventario;
-            } else {
-                id_fila_inventario = filaInvRes.rows[0].id_fila_inventario;
-                await client.query(
-                    `UPDATE fila_inventario 
-           SET cantidad = cantidad + $1 
-           WHERE id_fila_inventario = $2`,
-                    [cantidad, id_fila_inventario]
-                );
-            }
 
-            // B. Buscar o crear la subfila_inventario (variante)
-            const subfilaRes = await client.query(
-                `SELECT id_subfila_inventario 
-         FROM subfila_inventario 
-         WHERE id_fila_inventario = $1 
-           AND talla = $2 
-           AND colores = $3 
-           AND taco = $4 
-           AND plataforma = $5 
-         LIMIT 1`,
-                [id_fila_inventario, talla, colores, taco, plataforma]
-            );
+                let id_fila_inventario;
 
-            if (subfilaRes.rows.length > 0) {
-                await client.query(
-                    `UPDATE subfila_inventario 
-           SET cantidad = cantidad + $1 
-           WHERE id_subfila_inventario = $2`,
-                    [cantidad, subfilaRes.rows[0].id_subfila_inventario]
+                if (filaInvRes.rows.length === 0) {
+                    const nuevaFilaRes = await client.query(
+                        `INSERT INTO fila_inventario 
+                        (id_calzado, id_inventario, cantidad, email_user, usuario_creacion)
+                       VALUES ($1, $2, $3, $4, $5)
+                       RETURNING id_fila_inventario`,
+                        [id_calzado, id_inventario, cantidad, email_user, usuario_creacion]
+                    );
+                    id_fila_inventario = nuevaFilaRes.rows[0].id_fila_inventario;
+                } else {
+                    id_fila_inventario = filaInvRes.rows[0].id_fila_inventario;
+                    await client.query(
+                        `UPDATE fila_inventario 
+                       SET cantidad = cantidad + $1 
+                       WHERE id_fila_inventario = $2`,
+                        [cantidad, id_fila_inventario]
+                    );
+                }
+
+                // B. Buscar o crear la subfila_inventario (variante)
+                const subfilaRes = await client.query(
+                    `SELECT id_subfila_inventario 
+                     FROM subfila_inventario 
+                     WHERE id_fila_inventario = $1 
+                       AND talla = $2 
+                       AND colores = $3 
+                       AND taco = $4 
+                       AND plataforma = $5 
+                     LIMIT 1`,
+                    [id_fila_inventario, talla, colores, taco, plataforma]
                 );
-            } else {
-                await client.query(
-                    `INSERT INTO subfila_inventario 
-            (id_fila_inventario, talla, colores, taco, plataforma, cantidad, email_user, usuario_creacion)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                    [
-                        id_fila_inventario,
-                        talla,
-                        colores,
-                        taco,
-                        plataforma,
-                        cantidad,
-                        email_user,
-                        usuario_creacion
-                    ]
-                );
+
+                if (subfilaRes.rows.length > 0) {
+                    await client.query(
+                        `UPDATE subfila_inventario 
+                       SET cantidad = cantidad + $1 
+                       WHERE id_subfila_inventario = $2`,
+                        [cantidad, subfilaRes.rows[0].id_subfila_inventario]
+                    );
+                } else {
+                    await client.query(
+                        `INSERT INTO subfila_inventario 
+                        (id_fila_inventario, talla, colores, taco, plataforma, cantidad, email_user, usuario_creacion)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                        [
+                            id_fila_inventario,
+                            talla,
+                            colores,
+                            taco,
+                            plataforma,
+                            cantidad,
+                            email_user,
+                            usuario_creacion
+                        ]
+                    );
+                }
             }
         }
 
@@ -170,7 +181,14 @@ router.delete('/:id_fila_venta', async (req, res) => {
         }
 
         await client.query('COMMIT');
-        res.json({ message: esMuestra ? 'Muestra eliminada.' : 'Venta eliminada y stock restaurado.' });
+        
+        const mensajeRespuesta = esMuestra 
+            ? 'Muestra eliminada.' 
+            : (data && data.id_calzado) 
+                ? 'Venta eliminada.' 
+                : 'Venta eliminada y stock restaurado.'; // O ajusta el mensaje según prefieras
+                
+        res.json({ message: esMuestra ? 'Muestra eliminada.' : 'Proceso de eliminación completado.' });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error en DELETE /api/fila_venta:', error.message);
