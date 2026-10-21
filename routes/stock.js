@@ -5,13 +5,13 @@ const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la u
 // 1. Filtrar Inventario (Cabecera y Detalle usando sp_filtrar_inventario)
 // Petición: POST /api/inventario/filtrar
 router.post('/filtrar', async (req, res) => {
-  const { 
-    p_ids_calzado = [], 
-    p_ids_color = [], 
-    p_tallas = [], 
-    p_plataforma = [], 
-    p_tacos = [], 
-    p_inventario_id 
+  const {
+    p_ids_calzado = [],
+    p_ids_color = [],
+    p_tallas = [],
+    p_plataforma = [],
+    p_tacos = [],
+    p_inventario_id
   } = req.body;
 
   const client = await pool.connect();
@@ -46,13 +46,13 @@ router.post('/filtrar', async (req, res) => {
 // 2. Filtrar Calzado con Imágenes y Colores (usando sp_filtrar_calzado_imagenes)
 // Petición: POST /api/inventario/imagenes-filtradas
 router.post('/imagenes-filtradas', async (req, res) => {
-  let { 
-    p_ids_calzado = [], 
-    p_ids_color = [], 
-    p_tallas = [], 
-    p_plataforma = [], 
-    p_tacos = [], 
-    p_inventario_id 
+  let {
+    p_ids_calzado = [],
+    p_ids_color = [],
+    p_tallas = [],
+    p_plataforma = [],
+    p_tacos = [],
+    p_inventario_id
   } = req.body;
 
   // Normalización defensiva
@@ -80,6 +80,41 @@ router.post('/imagenes-filtradas', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('DETALLE DEL ERROR SQL (imagenes-filtradas):', error.message);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 2b. Filtrar Calzado Simple (usando sp_filtrar_calzado_simple)
+// Petición: POST /api/inventario/imagenes-filtradas-simple
+router.post('/imagenes-filtradas-simple', async (req, res) => {
+  let {
+    p_ids_calzado = [],
+    p_inventario_id
+  } = req.body;
+
+  // Normalización defensiva
+  if (!Array.isArray(p_ids_calzado)) p_ids_calzado = [];
+  p_inventario_id = Number(p_inventario_id);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `CALL sp_filtrar_calzado_simple($1, $2, 'ref_cursor_calzado')`,
+      [p_ids_calzado, p_inventario_id]
+    );
+
+    const resultado = await client.query('FETCH ALL FROM ref_cursor_calzado;');
+
+    await client.query('COMMIT');
+
+    res.json(resultado.rows);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('DETALLE DEL ERROR SQL (imagenes-filtradas-simple):', error.message);
     res.status(500).json({ error: error.message });
   } finally {
     client.release();
