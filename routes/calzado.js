@@ -438,25 +438,38 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Eliminar calzado (Baja lógica)
+// Desactivar calzado y eliminar todo su inventario asociado
 // Petición: DELETE /api/calzado/:id
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
 
   try {
-    const resultado = await pool.query(
+    await client.query('BEGIN');
+
+    // 1. Primero desactivar el calzado (Baja lógica)
+    const resultado = await client.query(
       'UPDATE calzado SET activo = $2 WHERE id_calzado = $1 RETURNING *',
       [id, false]
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({ error: 'calzado no encontrado' });
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Calzado no encontrado' });
     }
 
-    res.json({ mensaje: 'calzado eliminado correctamente' });
+    // 2. Eliminar físicamente todo el inventario de ese calzado (PostgreSQL elimina subfilas por CASCADE)
+    await client.query('DELETE FROM fila_inventario WHERE id_calzado = $1', [id]);
+
+    await client.query('COMMIT');
+
+    res.json({ mensaje: 'Calzado desactivado e inventario eliminado correctamente' });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error en DELETE /api/calzado/:id:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
   }
 });
 
