@@ -188,7 +188,7 @@ router.delete('/:id_fila_venta', async (req, res) => {
                 ? 'Venta eliminada.' 
                 : 'Venta eliminada y stock restaurado.'; // O ajusta el mensaje según prefieras
                 
-        res.json({ message: esMuestra ? 'Muestra eliminada.' : 'Proceso de eliminación completado.' });
+        res.json({ message: mensajeRespuesta });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error en DELETE /api/fila_venta:', error.message);
