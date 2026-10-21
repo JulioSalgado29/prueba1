@@ -31,15 +31,13 @@ router.get('/inventario/:id_inventario', async (req, res) => {
           ELSE EXISTS (
             SELECT 1 
             FROM calzado cal
-            INNER JOIN fila_inventario fi ON fi.id_calzado = cal.id_calzado
-            WHERE fi.id_inventario = col.id_inventario
-              AND cal.id_calzado = $2::integer
+            WHERE cal.id_calzado = $2::integer
               AND cal.activo = true
               AND cal.imagenes IS NOT NULL
               AND EXISTS (
                 SELECT 1 
                 FROM unnest(cal.imagenes) AS img
-                WHERE img ILIKE '%' || fi.id_inventario || '/' || cal.nombre || '/' || col.nombre || '%'
+                WHERE img ILIKE '%' || $1::text || '/' || cal.nombre || '/' || col.nombre || '%'
               )
           )
         END AS aparece_en_imagenes
