@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
         id_usuario_rol,
         nombre_rol
       FROM usuario_rol
-      ORDER BY id_usuario_rol DESC`
+      ORDER BY nombre_rol ASC`
     );
     res.json(resultado.rows);
   } catch (error) {
