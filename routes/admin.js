@@ -149,7 +149,7 @@ router.get('/sesiones-google', async (req, res) => {
   }
 });
 
-// 5. Historial de sesiones de Google, con paginación
+// 5. Historial de sesiones de Google, con paginación y ajuste de 5 horas
 // Petición: GET /api/admin/sesiones-google-historial?page=1&limit=30
 router.get('/sesiones-google-historial', async (req, res) => {
   try {
@@ -158,7 +158,12 @@ router.get('/sesiones-google-historial', async (req, res) => {
     const offset = (page - 1) * limit;
 
     const resultado = await pool.query(
-      `SELECT * 
+      `SELECT 
+        id_sesion_google_log,
+        email,
+        (fecha_ingreso + INTERVAL '5 hours') AS fecha_ingreso,
+        name,
+        plataforma
        FROM sesion_google_log 
        ORDER BY fecha_ingreso DESC 
        LIMIT $1 OFFSET $2`,
@@ -172,7 +177,7 @@ router.get('/sesiones-google-historial', async (req, res) => {
       data: resultado.rows
     });
   } catch (error) {
-    console.error('Error en GET /sesiones-google-historial:', error.message);
+    console.error('Error en GET /api/admin/sesiones-google-historial:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
