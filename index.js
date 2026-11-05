@@ -23,6 +23,7 @@ const homeRoutes = require('./routes/home');
 const ingresoRoutes = require('./routes/ingreso');
 const usuarioRolRoutes = require('./routes/usuario_rol');
 const qrRoutes = require('./routes/qr');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -55,6 +56,7 @@ app.use('/api/home', homeRoutes);
 app.use('/api/ingreso', ingresoRoutes);
 app.use('/api/usuario_rol', usuarioRolRoutes);
 app.use('/api/qr', qrRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
