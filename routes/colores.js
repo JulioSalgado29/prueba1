@@ -8,8 +8,6 @@ router.get('/inventario/:id_inventario', async (req, res) => {
   const { id_inventario } = req.params;
   const { id_calzado } = req.query;
 
-  console.log(`📥 [Backend] GET /inventario/${id_inventario} | id_calzado query:`, id_calzado);
-
   const parsedIdCalzado = id_calzado && Number(id_calzado) > 0
     ? Number(id_calzado)
     : null;
