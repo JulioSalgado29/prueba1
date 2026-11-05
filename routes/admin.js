@@ -86,6 +86,7 @@ router.get('/usuarios-ocultos-listar', async (req, res) => {
         co.id AS id_correo_oculto,
         co.email,
         u.id_usuario,
+        u.id_usuario_rol,
         u.nombre AS usuario_nombre,
         i.id_propietario,
         i.id_inventario,
