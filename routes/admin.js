@@ -127,6 +127,7 @@ router.get('/sesiones-google', async (req, res) => {
         name, 
         COUNT(*) AS cantidad
       FROM sesion_google_log
+      WHERE email NOT IN (SELECT email FROM correos_ocultos)
       GROUP BY 
         EXTRACT(ISODOW FROM fecha_ingreso),
         fecha_ingreso::date, 
@@ -165,6 +166,7 @@ router.get('/sesiones-google-historial', async (req, res) => {
         name,
         plataforma
        FROM sesion_google_log 
+       WHERE email NOT IN (SELECT email FROM correos_ocultos)
        ORDER BY fecha_ingreso DESC 
        LIMIT $1 OFFSET $2`,
       [limit, offset]
