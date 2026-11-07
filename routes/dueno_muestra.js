@@ -10,15 +10,16 @@ const limpiarNombreDueno = (texto) => {
 
 // Helper: ¿ya existe un dueño de muestra ACTIVO con ese nombre en el inventario?
 // Compara sin distinguir mayúsculas/minúsculas ni espacios repetidos.
-async function existeNombreDueno(idInventario, nombreLimpio) {
+async function existeNombreDueno(idInventario, nombreLimpio, excluirId = null) {
   const resultado = await pool.query(
     `SELECT 1
        FROM dueno_muestra
       WHERE estado = true
         AND id_inventario = $1
         AND LOWER(regexp_replace(TRIM(nombre), '\\s+', ' ', 'g')) = LOWER($2)
+        AND ($3::int IS NULL OR id_dueno_muestra <> $3::int)
       LIMIT 1`,
-    [idInventario, nombreLimpio]
+    [idInventario, nombreLimpio, excluirId]
   );
   return resultado.rowCount > 0;
 }
@@ -140,6 +141,28 @@ router.put('/:id', async (req, res) => {
   const emailLimpio = email_usuario.trim().toLowerCase();
 
   try {
+    // 🚫 No permitir renombrar a un nombre que ya usa otro dueño del inventario
+    const actual = await pool.query(
+      'SELECT nombre, id_inventario FROM dueno_muestra WHERE id_dueno_muestra = $1',
+      [id]
+    );
+    if (actual.rows.length === 0) {
+      return res.status(404).json({ error: 'dueno_muestra no encontrado' });
+    }
+    const { nombre: nombreActual, id_inventario: idInventarioActual } = actual.rows[0];
+    const nombreNuevo = limpiarNombreDueno(nombre);
+    const cambioNombre =
+      limpiarNombreDueno(nombreActual).toLowerCase() !== nombreNuevo.toLowerCase();
+    if (cambioNombre && idInventarioActual && nombreNuevo) {
+      const duplicado = await existeNombreDueno(idInventarioActual, nombreNuevo, parseInt(id, 10));
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un dueño creado con el nombre "${nombreNuevo}".`
+        });
+      }
+    }
+
     const resultado = await pool.query(
       'UPDATE dueno_muestra SET email_usuario = $1, nombre = $2, usuario_creacion = $3 WHERE id_dueno_muestra = $4 RETURNING *',
       [emailLimpio, nombre, usuario_creacion, id]

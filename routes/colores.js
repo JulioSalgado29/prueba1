@@ -4,15 +4,16 @@ const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la u
 
 // Helper: ¿ya existe un color ACTIVO con ese nombre en el inventario?
 // El nombre ya debe venir formateado (mayúsculas, sin tildes, sin espacios extra).
-async function existeNombreColor(idInventario, nombreFormateado) {
+async function existeNombreColor(idInventario, nombreFormateado, excluirId = null) {
   const resultado = await pool.query(
     `SELECT 1
        FROM colores
       WHERE estado = true
         AND id_inventario = $1
         AND UPPER(TRIM(nombre)) = UPPER($2)
+        AND ($3::int IS NULL OR id_color <> $3::int)
       LIMIT 1`,
-    [idInventario, nombreFormateado]
+    [idInventario, nombreFormateado, excluirId]
   );
   return resultado.rowCount > 0;
 }
@@ -158,6 +159,26 @@ router.put('/:id', async (req, res) => {
   const nombreLimpio = formatearNombre(nombre);
 
   try {
+    // 🚫 No permitir renombrar a un nombre que ya usa otro color del inventario
+    const actual = await pool.query(
+      'SELECT nombre, id_inventario FROM colores WHERE id_color = $1',
+      [id]
+    );
+    if (actual.rows.length === 0) {
+      return res.status(404).json({ error: 'color no encontrado' });
+    }
+    const { nombre: nombreActual, id_inventario: idInventarioActual } = actual.rows[0];
+    const cambioNombre = formatearNombre(nombreActual) !== nombreLimpio;
+    if (cambioNombre && idInventarioActual && nombreLimpio) {
+      const duplicado = await existeNombreColor(idInventarioActual, nombreLimpio, parseInt(id, 10));
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un color creado con el nombre "${nombreLimpio}".`
+        });
+      }
+    }
+
     const resultado = await pool.query(
       'UPDATE colores SET email_usuario = $1, nombre = $2, usuario_creacion = $3 WHERE id_color = $4 RETURNING *',
       [emailLimpio, nombreLimpio, usuario_creacion, id]

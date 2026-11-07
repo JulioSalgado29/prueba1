@@ -10,15 +10,16 @@ const limpiarNombreTipo = (texto) => {
 
 // Helper: ¿ya existe un tipo de calzado ACTIVO con ese nombre en el inventario?
 // Compara sin distinguir mayúsculas/minúsculas ni espacios repetidos.
-async function existeNombreTipoCalzado(idInventario, nombreLimpio) {
+async function existeNombreTipoCalzado(idInventario, nombreLimpio, excluirId = null) {
   const resultado = await pool.query(
     `SELECT 1
        FROM tipo_calzado
       WHERE activo = true
         AND id_inventario = $1
         AND LOWER(regexp_replace(TRIM(nombre), '\\s+', ' ', 'g')) = LOWER($2)
+        AND ($3::int IS NULL OR id_tipo_calzado <> $3::int)
       LIMIT 1`,
-    [idInventario, nombreLimpio]
+    [idInventario, nombreLimpio, excluirId]
   );
   return resultado.rowCount > 0;
 }
@@ -185,6 +186,28 @@ router.put('/:id', async (req, res) => {
   } = req.body;
 
   try {
+    // 🚫 No permitir renombrar a un nombre que ya usa otro tipo del inventario
+    const actual = await pool.query(
+      'SELECT nombre, id_inventario FROM tipo_calzado WHERE id_tipo_calzado = $1 AND activo = true',
+      [id]
+    );
+    if (actual.rows.length === 0) {
+      return res.status(404).json({ error: 'Tipo de calzado no encontrado' });
+    }
+    const { nombre: nombreActual, id_inventario: idInventarioActual } = actual.rows[0];
+    const nombreNuevo = limpiarNombreTipo(nombre);
+    const cambioNombre =
+      limpiarNombreTipo(nombreActual).toLowerCase() !== nombreNuevo.toLowerCase();
+    if (cambioNombre && idInventarioActual && nombreNuevo) {
+      const duplicado = await existeNombreTipoCalzado(idInventarioActual, nombreNuevo, parseInt(id, 10));
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un tipo de calzado creado con el nombre "${nombreNuevo}".`
+        });
+      }
+    }
+
     const resultado = await pool.query(
       `UPDATE tipo_calzado SET
         nombre = $1,
