@@ -27,6 +27,21 @@ function obtenerS3KeyDesdeUrl(url) {
   }
 }
 
+// Helper: ¿ya existe un calzado ACTIVO con ese nombre en el inventario?
+// Compara sin distinguir mayúsculas/minúsculas (el nombre ya viene limpio).
+async function existeNombreCalzado(idInventario, nombreLimpio) {
+  const resultado = await pool.query(
+    `SELECT 1
+       FROM calzado
+      WHERE activo = true
+        AND id_inventario = $1
+        AND LOWER(TRIM(nombre)) = LOWER($2)
+      LIMIT 1`,
+    [idInventario, nombreLimpio]
+  );
+  return resultado.rowCount > 0;
+}
+
 // Helper para limpiar las fotos antiguas de la carpeta en S3 pero EXCLUYENDO las fotos nuevas
 async function limpiarArchivosAntiguosS3(bucket, prefijoCarpeta, urlsNuevasConservar) {
   try {
@@ -125,6 +140,29 @@ router.post('/presigned-url', async (req, res) => {
   } catch (error) {
     console.error('Error generando Presigned URL de S3:', error);
     return res.status(500).json({ error: 'Error al generar la URL de subida' });
+  }
+});
+
+// =================================================================
+// 🔎 ENDPOINT: Verificar si ya existe un código con ese nombre
+// GET /api/calzado/existe-nombre?id_inventario=1&nombre=ABC
+// (debe ir ANTES de '/:id')
+// =================================================================
+router.get('/existe-nombre', async (req, res) => {
+  try {
+    const { id_inventario, nombre } = req.query;
+    const nombreLimpio = limpiarNombreCalzado(nombre);
+    const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
+
+    if (!parsedInventarioId || !nombreLimpio) {
+      return res.status(400).json({ error: 'id_inventario y nombre son requeridos' });
+    }
+
+    const existe = await existeNombreCalzado(parsedInventarioId, nombreLimpio);
+    return res.json({ existe });
+  } catch (error) {
+    console.error('Error en GET /api/calzado/existe-nombre:', error.message);
+    return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -298,6 +336,17 @@ router.post('/', async (req, res) => {
     const parsedTipoCalzadoId = id_tipo_calzado ? parseInt(id_tipo_calzado, 10) : null;
     const parsedInventarioId = id_inventario ? parseInt(id_inventario, 10) : null;
     const parsedImagenes = Array.isArray(imagenes) ? imagenes : [];
+
+    // 🚫 No permitir nombres repetidos dentro del mismo inventario
+    if (parsedInventarioId !== null && nombreLimpio) {
+      const duplicado = await existeNombreCalzado(parsedInventarioId, nombreLimpio);
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un código creado con el nombre "${nombreLimpio}".`
+        });
+      }
+    }
 
     const query = `
       INSERT INTO calzado (
