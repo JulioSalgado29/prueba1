@@ -2,6 +2,42 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
 
+// Helper: ¿ya existe un color ACTIVO con ese nombre en el inventario?
+// El nombre ya debe venir formateado (mayúsculas, sin tildes, sin espacios extra).
+async function existeNombreColor(idInventario, nombreFormateado) {
+  const resultado = await pool.query(
+    `SELECT 1
+       FROM colores
+      WHERE estado = true
+        AND id_inventario = $1
+        AND UPPER(TRIM(nombre)) = UPPER($2)
+      LIMIT 1`,
+    [idInventario, nombreFormateado]
+  );
+  return resultado.rowCount > 0;
+}
+
+// 0. Verificar si ya existe un color con ese nombre
+// Petición: GET /api/colores/existe-nombre?id_inventario=1&nombre=ROJO
+// (debe ir ANTES de '/:id')
+router.get('/existe-nombre', async (req, res) => {
+  try {
+    const { id_inventario, nombre } = req.query;
+    const nombreLimpio = formatearNombre(nombre);
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+
+    if (!parsedIdInventario || !nombreLimpio) {
+      return res.status(400).json({ error: 'id_inventario y nombre son requeridos' });
+    }
+
+    const existe = await existeNombreColor(parsedIdInventario, nombreLimpio);
+    return res.json({ existe });
+  } catch (error) {
+    console.error('Error en GET /api/colores/existe-nombre:', error.message);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // 1. Listar colores de un inventario
 // Petición: GET /api/colores/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
@@ -88,6 +124,18 @@ router.post('/', async (req, res) => {
   const nombreLimpio = formatearNombre(nombre);
 
   try {
+    // 🚫 No permitir nombres repetidos dentro del mismo inventario
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+    if (parsedIdInventario && nombreLimpio) {
+      const duplicado = await existeNombreColor(parsedIdInventario, nombreLimpio);
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un color creado con el nombre "${nombreLimpio}".`
+        });
+      }
+    }
+
     const nuevo = await pool.query(
       'INSERT INTO colores (email_usuario, id_inventario, nombre, usuario_creacion) VALUES ($1, $2, $3, $4) RETURNING *',
       [emailLimpio, id_inventario, nombreLimpio, usuario_creacion]
