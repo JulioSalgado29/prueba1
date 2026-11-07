@@ -2,6 +2,48 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
+// Helper: normaliza el nombre para comparar (sin espacios extra)
+const limpiarNombreTipo = (texto) => {
+  if (!texto) return '';
+  return String(texto).trim().replace(/\s+/g, ' ');
+};
+
+// Helper: ¿ya existe un tipo de calzado ACTIVO con ese nombre en el inventario?
+// Compara sin distinguir mayúsculas/minúsculas ni espacios repetidos.
+async function existeNombreTipoCalzado(idInventario, nombreLimpio) {
+  const resultado = await pool.query(
+    `SELECT 1
+       FROM tipo_calzado
+      WHERE activo = true
+        AND id_inventario = $1
+        AND LOWER(regexp_replace(TRIM(nombre), '\\s+', ' ', 'g')) = LOWER($2)
+      LIMIT 1`,
+    [idInventario, nombreLimpio]
+  );
+  return resultado.rowCount > 0;
+}
+
+// 0. Verificar si ya existe un tipo de calzado con ese nombre
+// Petición: GET /api/tipo_calzado/existe-nombre?id_inventario=1&nombre=BOTA
+// (debe ir ANTES de '/:id')
+router.get('/existe-nombre', async (req, res) => {
+  try {
+    const { id_inventario, nombre } = req.query;
+    const nombreLimpio = limpiarNombreTipo(nombre);
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+
+    if (!parsedIdInventario || !nombreLimpio) {
+      return res.status(400).json({ error: 'id_inventario y nombre son requeridos' });
+    }
+
+    const existe = await existeNombreTipoCalzado(parsedIdInventario, nombreLimpio);
+    return res.json({ existe });
+  } catch (error) {
+    console.error('Error en GET /api/tipo_calzado/existe-nombre:', error.message);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // 1. Listar tipos de calzado activos por inventario
 // Petición: GET /api/tipo_calzado/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
@@ -82,6 +124,19 @@ router.post('/', async (req, res) => {
   } = req.body;
 
   try {
+    // 🚫 No permitir nombres repetidos dentro del mismo inventario
+    const nombreLimpio = limpiarNombreTipo(nombre);
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+    if (parsedIdInventario && nombreLimpio) {
+      const duplicado = await existeNombreTipoCalzado(parsedIdInventario, nombreLimpio);
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un tipo de calzado creado con el nombre "${nombreLimpio}".`
+        });
+      }
+    }
+
     const resultado = await pool.query(
       `INSERT INTO tipo_calzado (
         nombre,
