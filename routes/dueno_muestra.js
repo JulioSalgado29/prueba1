@@ -2,6 +2,48 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
 
+// Helper: normaliza el nombre para comparar (sin espacios extra)
+const limpiarNombreDueno = (texto) => {
+  if (!texto) return '';
+  return String(texto).trim().replace(/\s+/g, ' ');
+};
+
+// Helper: ¿ya existe un dueño de muestra ACTIVO con ese nombre en el inventario?
+// Compara sin distinguir mayúsculas/minúsculas ni espacios repetidos.
+async function existeNombreDueno(idInventario, nombreLimpio) {
+  const resultado = await pool.query(
+    `SELECT 1
+       FROM dueno_muestra
+      WHERE estado = true
+        AND id_inventario = $1
+        AND LOWER(regexp_replace(TRIM(nombre), '\\s+', ' ', 'g')) = LOWER($2)
+      LIMIT 1`,
+    [idInventario, nombreLimpio]
+  );
+  return resultado.rowCount > 0;
+}
+
+// 0. Verificar si ya existe un dueño de muestra con ese nombre
+// Petición: GET /api/dueno_muestra/existe-nombre?id_inventario=1&nombre=Juan
+// (debe ir ANTES de '/:id')
+router.get('/existe-nombre', async (req, res) => {
+  try {
+    const { id_inventario, nombre } = req.query;
+    const nombreLimpio = limpiarNombreDueno(nombre);
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+
+    if (!parsedIdInventario || !nombreLimpio) {
+      return res.status(400).json({ error: 'id_inventario y nombre son requeridos' });
+    }
+
+    const existe = await existeNombreDueno(parsedIdInventario, nombreLimpio);
+    return res.json({ existe });
+  } catch (error) {
+    console.error('Error en GET /api/dueno_muestra/existe-nombre:', error.message);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // 1. Listar dueno_muestra de un inventario
 // Petición: GET /api/dueno_muestra/inventario/:id_inventario
 router.get('/inventario/:id_inventario', async (req, res) => {
@@ -64,6 +106,19 @@ router.post('/', async (req, res) => {
   const emailLimpio = email_usuario.trim().toLowerCase();
 
   try {
+    // 🚫 No permitir nombres repetidos dentro del mismo inventario
+    const nombreLimpio = limpiarNombreDueno(nombre);
+    const parsedIdInventario = id_inventario ? parseInt(id_inventario, 10) : null;
+    if (parsedIdInventario && nombreLimpio) {
+      const duplicado = await existeNombreDueno(parsedIdInventario, nombreLimpio);
+      if (duplicado) {
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `Ya existe un dueño creado con el nombre "${nombreLimpio}".`
+        });
+      }
+    }
+
     const nuevo = await pool.query(
       'INSERT INTO dueno_muestra (email_usuario, id_inventario, nombre, usuario_creacion) VALUES ($1, $2, $3, $4) RETURNING *',
       [emailLimpio, id_inventario, nombre, usuario_creacion]
