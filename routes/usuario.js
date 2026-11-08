@@ -2,6 +2,39 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db'); // Ajusta la ruta a tu conexión 'db' según la ubicación de tus carpetas
 
+// Helper: ¿ya existe un usuario con ese correo? (el correo es único en todo el sistema)
+// `db` puede ser el pool o un client (para usarlo dentro de una transacción).
+// `excluirId` permite ignorar al propio usuario al editar.
+async function existeEmailUsuario(db, emailLimpio, excluirId = null) {
+  const resultado = await db.query(
+    `SELECT 1
+       FROM usuario
+      WHERE LOWER(TRIM(email)) = LOWER($1)
+        AND ($2::int IS NULL OR id_usuario <> $2::int)
+      LIMIT 1`,
+    [emailLimpio, excluirId]
+  );
+  return resultado.rowCount > 0;
+}
+
+// 0. Verificar si ya existe un usuario con ese correo
+// Petición: GET /api/usuario/existe-email?email=correo@gmail.com
+// (debe ir ANTES de '/:email')
+router.get('/existe-email', async (req, res) => {
+  try {
+    const emailLimpio = req.query.email ? String(req.query.email).trim().toLowerCase() : '';
+    if (!emailLimpio) {
+      return res.status(400).json({ error: 'email es requerido' });
+    }
+
+    const existe = await existeEmailUsuario(pool, emailLimpio);
+    return res.json({ existe });
+  } catch (error) {
+    console.error('Error en GET /api/usuario/existe-email:', error.message);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // 1. Buscar dueno_muestra por Email
 // Petición: GET /api/dueno_muestra/:email
 router.get('/:email', async (req, res) => {
@@ -96,6 +129,15 @@ router.post('/usuario', async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    // 🚫 No permitir correos repetidos
+    if (emailLimpio && (await existeEmailUsuario(client, emailLimpio))) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'duplicado',
+        mensaje: `El correo "${emailLimpio}" ya está registrado.`
+      });
+    }
+
     // Llamamos al SP pasando id_usuario como NULL (para que sepa que es una inserción)
     await client.query(
       'CALL sp_guardar_o_actualizar_usuario(NULL, $1, $2, $3, $4)',
@@ -124,6 +166,27 @@ router.put('/usuario/:id_usuario', async (req, res) => {
 
   try {
     await client.query('BEGIN');
+
+    // 🚫 No permitir cambiar el correo por uno que ya usa otro usuario
+    const actual = await client.query(
+      'SELECT email FROM usuario WHERE id_usuario = $1',
+      [id_usuario]
+    );
+    if (actual.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    const emailActual = (actual.rows[0].email || '').trim().toLowerCase();
+    if (emailLimpio && emailActual !== emailLimpio) {
+      const duplicado = await existeEmailUsuario(client, emailLimpio, parseInt(id_usuario, 10));
+      if (duplicado) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'duplicado',
+          mensaje: `El correo "${emailLimpio}" ya está registrado.`
+        });
+      }
+    }
 
     // Llamamos al SP pasando el id_usuario a modificar y id_inventario como NULL (no se altera)
     await client.query(
