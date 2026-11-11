@@ -92,8 +92,8 @@ router.get('/usuarios-ocultos-listar', async (req, res) => {
         i.id_inventario,
         i.nombre AS inventario_nombre 
       FROM correos_ocultos co
-      INNER JOIN usuario u ON co.email = u.email
-      INNER JOIN inventario i ON i.id_propietario = u.id_propietario
+      LEFT JOIN usuario u ON co.email = u.email
+      LEFT JOIN inventario i ON i.id_propietario = u.id_propietario
       ORDER BY co.id`,
     );
     res.json(resultado.rows);
