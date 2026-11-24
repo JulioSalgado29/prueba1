@@ -2,11 +2,51 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// 1. Listar ventas por ID de inventario y filtrado opcional por fecha (YYYY-MM-DD)
-// Petición: GET /api/fila_venta/inventario/:id_inventario?fecha=2026-08-24
+// 0. Límites del calendario: primer día del mes de la primera venta y
+//    último día del mes de la última venta (ajuste UTC -5). Texto 'YYYY-MM-DD'
+//    para evitar desfases de zona horaria al serializar a JSON.
+// Petición: GET /api/fila_venta/limites-fechas/:id_inventario
+router.get('/limites-fechas/:id_inventario', async (req, res) => {
+    const { id_inventario } = req.params;
+
+    try {
+        const resultado = await pool.query(
+            `SELECT
+                to_char(
+                    date_trunc('month', MIN(fecha_venta) - INTERVAL '5 hours')::date,
+                    'YYYY-MM-DD'
+                ) AS fecha_primera_venta,
+                to_char(
+                    (date_trunc('month', MAX(fecha_venta) - INTERVAL '5 hours')
+                        + INTERVAL '1 month' - INTERVAL '1 day')::date,
+                    'YYYY-MM-DD'
+                ) AS fecha_ultima_venta
+             FROM fila_venta
+             WHERE id_inventario = $1`,
+            [id_inventario]
+        );
+
+        const fila = resultado.rows[0] || {};
+        res.json({
+            fecha_primera_venta: fila.fecha_primera_venta || null,
+            fecha_ultima_venta: fila.fecha_ultima_venta || null
+        });
+    } catch (error) {
+        console.error('Error en GET /api/fila_venta/limites-fechas:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// 1. Listar ventas por ID de inventario con filtro opcional por RANGO de fechas (YYYY-MM-DD)
+// Petición: GET /api/fila_venta/inventario/:id_inventario?fecha_inicio=2026-08-24&fecha_fin=2026-08-30
+// (Compatibilidad: ?fecha=YYYY-MM-DD sigue funcionando como un solo día)
 router.get('/inventario/:id_inventario', async (req, res) => {
     const { id_inventario } = req.params;
-    const { fecha } = req.query;
+    const { fecha, fecha_inicio, fecha_fin } = req.query;
+
+    // Si solo llega una de las dos fechas, se usa como día único
+    const inicio = fecha_inicio || fecha_fin || fecha || null;
+    const fin = fecha_fin || fecha_inicio || fecha || null;
 
     try {
         let queryText = `
@@ -47,10 +87,10 @@ router.get('/inventario/:id_inventario', async (req, res) => {
 
         const queryParams = [id_inventario];
 
-        if (fecha) {
-            // Convierte fecha_venta a hora Perú (UTC-5) y compara solo el día
-            queryText += ` AND (fv.fecha_venta - INTERVAL '5 hours')::date = $2::date`;
-            queryParams.push(fecha);
+        if (inicio && fin) {
+            // Convierte fecha_venta a hora Perú (UTC-5) y compara solo el día (inclusivo)
+            queryText += ` AND (fv.fecha_venta - INTERVAL '5 hours')::date BETWEEN $2::date AND $3::date`;
+            queryParams.push(inicio, fin);
         }
 
         queryText += ` ORDER BY fv.fecha_venta DESC`;
