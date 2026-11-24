@@ -1,28 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { messaging } = require('../firebase'); // <-- Importación centralizada del servicio FCM
+const { enviarPushConBadge } = require('../utils/pushHelper'); // ✅ NUEVO
 
-// 1. Guardar o actualizar el Token FCM del dispositivo del Administrador
-// Petición: POST /api/notificaciones/token
+// 1. Guardar o actualizar el Token FCM del dispositivo
+// POST /api/notificaciones/token
 router.post('/token', async (req, res) => {
     console.log('📥 [Backend] POST /api/notificaciones/token - Solicitud recibida');
-    console.log('📦 [Backend] Body recibido:', req.body);
 
     const { email_usuario, fcm_token } = req.body;
 
-    // 1. Validación rápida obligatoria
     if (!email_usuario || !fcm_token || fcm_token.trim() === '') {
-        console.log('⚠️ [Backend] Validación fallida en /token: Faltan campos obligatorios');
         return res.status(400).json({ error: 'Faltan campos obligatorios (email o token)' });
     }
 
     const emailLimpio = email_usuario.trim().toLowerCase();
     const tokenLimpio = fcm_token.trim();
-    console.log(`🔍 [Backend] Buscando usuario para token con email: ${emailLimpio}`);
 
     try {
-        // 2. Verificar que el usuario exista en el sistema
         const userQuery = await pool.query(
             `SELECT u.id_usuario, u.email, r.nombre_rol 
              FROM usuario u 
@@ -32,64 +27,113 @@ router.post('/token', async (req, res) => {
         );
 
         if (userQuery.rows.length === 0) {
-            console.log(`❌ [Backend] Usuario no encontrado en base de datos para token: ${emailLimpio}`);
             return res.status(404).json({ error: 'Usuario no encontrado en el sistema' });
         }
 
         const usuario = userQuery.rows[0];
-        console.log(`✅ [Backend] Usuario encontrado (ID: ${usuario.id_usuario}, Rol: ${usuario.nombre_rol}). Actualizando token FCM...`);
 
-        // 3. Limpiar el token si lo tenía otro usuario (excepto el actual)
-        const clearResult = await pool.query(
-            `UPDATE usuario 
-             SET fcm_token = NULL 
+        // Limpiar el token si lo tenía otro usuario
+        await pool.query(
+            `UPDATE usuario SET fcm_token = NULL 
              WHERE fcm_token = $1 AND id_usuario <> $2`,
             [tokenLimpio, usuario.id_usuario]
         );
 
-        console.log(`🧹 [Backend] Limpieza de token previo. Filas afectadas en otros usuarios: ${clearResult.rowCount}`);
-
-        // 4. Actualizar o asignar el token FCM al usuario actual
         const resultado = await pool.query(
-            `UPDATE usuario 
-             SET fcm_token = $1 
+            `UPDATE usuario SET fcm_token = $1 
              WHERE id_usuario = $2 
-             RETURNING id_usuario, email, nombre, fcm_token`,
+             RETURNING id_usuario, email, nombre, fcm_token, badge_pendientes`,
             [tokenLimpio, usuario.id_usuario]
         );
-
-        console.log(`🎉 [Backend] Token FCM actualizado exitosamente para el usuario ID: ${usuario.id_usuario}`);
 
         res.status(200).json({
             mensaje: 'Token FCM registrado correctamente',
             data: resultado.rows[0],
         });
-
     } catch (error) {
-        console.error('🔥 [Backend] Error crítico en POST /api/notificaciones/token:', error.message);
-        console.error(error.stack);
+        console.error('🔥 [Backend] Error en POST /token:', error.message);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
 
-// 2. Disparar notificación de nueva venta a los administradores y almaceneros del mismo inventario
+// ✅ NUEVO: Quitar el token al cerrar sesión (evita pushes a quien ya salió)
+// POST /api/notificaciones/token/eliminar
+router.post('/token/eliminar', async (req, res) => {
+    const { email_usuario } = req.body;
+    if (!email_usuario) {
+        return res.status(400).json({ error: 'Falta email_usuario' });
+    }
+    try {
+        await pool.query(
+            `UPDATE usuario SET fcm_token = NULL, badge_pendientes = 0
+             WHERE LOWER(email) = $1`,
+            [email_usuario.trim().toLowerCase()]
+        );
+        res.status(200).json({ mensaje: 'Token eliminado' });
+    } catch (error) {
+        console.error('🔥 [Backend] Error en POST /token/eliminar:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// ✅ NUEVO: Marcar como vistas (pone el contador en 0)
+// POST /api/notificaciones/leidas
+router.post('/leidas', async (req, res) => {
+    const { email_usuario } = req.body;
+    if (!email_usuario) {
+        return res.status(400).json({ error: 'Falta email_usuario' });
+    }
+    try {
+        const r = await pool.query(
+            `UPDATE usuario SET badge_pendientes = 0
+             WHERE LOWER(email) = $1
+             RETURNING badge_pendientes`,
+            [email_usuario.trim().toLowerCase()]
+        );
+        if (r.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        res.status(200).json({ pendientes: r.rows[0].badge_pendientes });
+    } catch (error) {
+        console.error('🔥 [Backend] Error en POST /leidas:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// ✅ NUEVO: Consultar cuántas faltan por ver
+// GET /api/notificaciones/pendientes?email_usuario=...
+router.get('/pendientes', async (req, res) => {
+    const email = (req.query.email_usuario || '').toString().trim().toLowerCase();
+    if (!email) {
+        return res.status(400).json({ error: 'Falta email_usuario' });
+    }
+    try {
+        const r = await pool.query(
+            `SELECT COALESCE(badge_pendientes, 0) AS pendientes
+             FROM usuario WHERE LOWER(email) = $1`,
+            [email]
+        );
+        res.status(200).json({ pendientes: r.rows[0]?.pendientes ?? 0 });
+    } catch (error) {
+        console.error('🔥 [Backend] Error en GET /pendientes:', error.message);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// 2. Notificación de nueva venta
 // POST /api/notificaciones/enviar-venta
 router.post('/enviar-venta', async (req, res) => {
     console.log('📥 [Backend] POST /api/notificaciones/enviar-venta - Solicitud recibida');
-    console.log('📦 [Backend] Body recibido:', req.body);
 
     const { id_inventario, email_usuario, total_venta } = req.body;
 
     if (!id_inventario || !email_usuario || total_venta === undefined) {
-        console.log('⚠️ [Backend] Validación fallida: faltan campos obligatorios');
         return res.status(400).json({ error: 'Faltan campos obligatorios (id_inventario, email_usuario o total_venta)' });
     }
 
     const emailLimpio = email_usuario.trim().toLowerCase();
-    console.log(`🔍 [Backend] Procesando venta para inventario ID: ${id_inventario} realizada por: ${emailLimpio}`);
 
     try {
-        // 1. Nombre del vendedor
         const usuarioVentaQuery = await pool.query(
             `SELECT nombre FROM usuario WHERE LOWER(email) = $1`,
             [emailLimpio]
@@ -99,11 +143,8 @@ router.post('/enviar-venta', async (req, res) => {
             ? usuarioVentaQuery.rows[0].nombre.split(' ')[0]
             : 'Un usuario';
 
-        console.log(`👤 [Backend] Vendedor identificado: ${nombreVendedor}`);
-
-        // 2. Tokens de Administradores y Almaceneros del mismo inventario (excluyendo al emisor)
         const queryDestinatarios = `
-            SELECT u.id_usuario, u.email, u.fcm_token
+            SELECT DISTINCT u.id_usuario, u.email, u.fcm_token
             FROM usuario u
             JOIN usuario_rol r ON u.id_usuario_rol = r.id_usuario_rol
             JOIN inventario i ON u.id_propietario = i.id_propietario
@@ -116,84 +157,29 @@ router.post('/enviar-venta', async (req, res) => {
 
         const resultado = await pool.query(queryDestinatarios, [emailLimpio, id_inventario]);
         const destinatarios = resultado.rows;
-        const tokensDestinatarios = destinatarios.map(row => row.fcm_token);
 
-        console.log(`🎯 [Backend] Tokens destinatarios encontrados: ${tokensDestinatarios.length}`);
-
-        if (tokensDestinatarios.length === 0) {
+        if (destinatarios.length === 0) {
             return res.status(200).json({ mensaje: 'No hay otros administradores o almaceneros con token activo en este inventario.' });
         }
 
-        const titulo = '¡Nueva Venta Registrada! 💰';
-        const cuerpo = `${nombreVendedor} registró una venta por S/ ${total_venta}.`;
-
-        const mensaje = {
-            // ✅ "notification": el sistema Android/iOS la muestra aunque la app esté cerrada
-            notification: {
-                title: titulo,
-                body: cuerpo,
-            },
-            // "data": opcional, para lógica extra en la app (todos los valores deben ser String)
+        // ✅ CAMBIO: envío con badge individual (ya no es badge: 1 fijo)
+        const r = await enviarPushConBadge(destinatarios, {
+            titulo: '¡Nueva Venta Registrada! 💰',
+            cuerpo: `${nombreVendedor} registró una venta por S/ ${total_venta}.`,
             data: {
                 tipo: 'venta',
-                id_inventario: String(id_inventario),
-                total_venta: String(total_venta),
+                id_inventario: id_inventario,
+                total_venta: total_venta,
             },
-            tokens: tokensDestinatarios,
-            android: {
-                priority: 'high',
-                notification: {
-                    channelId: 'canal_calza_app_final', // IGUAL que kCanalId en Flutter
-                    sound: 'alerta_calza_app',       // res/raw/alerta_calza_app.mp3 (sin extensión)
-                },
-            },
-            apns: {
-                headers: { 'apns-priority': '10' },
-                payload: {
-                    aps: {
-                        sound: 'alerta_calza_app.wav', // debe estar en el bundle de iOS
-                        badge: 1,
-                    },
-                },
-            },
-        };
-
-        console.log('🚀 [Backend] Enviando notificaciones mediante Firebase Cloud Messaging...');
-        const respuestaAdmin = await messaging.sendEachForMulticast(mensaje);
-
-        console.log(`✅ [Backend] Exitosas: ${respuestaAdmin.successCount}, Fallidas: ${respuestaAdmin.failureCount}`);
-
-        // 3. Log de errores + limpieza de tokens inválidos
-        const tokensInvalidos = [];
-        respuestaAdmin.responses.forEach((resp, idx) => {
-            if (!resp.success) {
-                const code = resp.error?.code;
-                console.error(`❌ [Backend] Token fallido (${destinatarios[idx].email}): ${code} - ${resp.error?.message}`);
-                if (
-                    code === 'messaging/registration-token-not-registered' ||
-                    code === 'messaging/invalid-registration-token'
-                ) {
-                    tokensInvalidos.push(tokensDestinatarios[idx]);
-                }
-            }
         });
-
-        if (tokensInvalidos.length > 0) {
-            await pool.query(
-                `UPDATE usuario SET fcm_token = NULL WHERE fcm_token = ANY($1::text[])`,
-                [tokensInvalidos]
-            );
-            console.log(`🧹 [Backend] Tokens inválidos eliminados: ${tokensInvalidos.length}`);
-        }
 
         res.status(200).json({
             mensaje: 'Proceso de notificación finalizado',
-            exitosas: respuestaAdmin.successCount,
-            fallidas: respuestaAdmin.failureCount,
+            exitosas: r.successCount,
+            fallidas: r.failureCount,
         });
-
     } catch (error) {
-        console.error('🔥 [Backend] Error crítico en POST /api/notificaciones/enviar-venta:', error.message);
+        console.error('🔥 [Backend] Error en POST /enviar-venta:', error.message);
         console.error(error.stack);
         res.status(500).json({ error: 'Error interno del servidor' });
     }
