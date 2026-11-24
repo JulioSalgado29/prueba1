@@ -126,8 +126,11 @@ function responderError(res, ruta, error) {
   if (error.code === '23503') {
     return res.status(400).json({ error: 'Inventario inválido' });
   }
-  console.error(`Error en ${ruta}:`, error.message);
-  return res.status(500).json({ error: 'Error interno del servidor' });
+  console.error(`Error en ${ruta}:`, error);
+  // 'detalle' ayuda a depurar; quítalo cuando todo funcione en producción
+  return res
+    .status(500)
+    .json({ error: 'Error interno del servidor', detalle: error.message });
 }
 
 // ═══════════════════════════════════════════════════════════════
