@@ -21,7 +21,8 @@ router.post('/administrador', async (req, res) => {
     const resDinero = await client.query('FETCH ALL FROM c_dinero_inventario');
     const resBalanceDia = await client.query('FETCH ALL FROM c_balance_por_dia');
     const resBalanceTiendaDia = await client.query('FETCH ALL FROM c_balance_por_tienda_dia');
-    const resMesPrimeraVenta = await client.query('FETCH ALL FROM c_mes_primera_venta');
+    const resFechaPrimeraVenta = await client.query('FETCH ALL FROM c_fecha_primera_venta');
+    const resFechaUltimaVenta = await client.query('FETCH ALL FROM c_fecha_ultima_venta');
 
     await client.query('COMMIT');
 
@@ -32,7 +33,8 @@ router.post('/administrador', async (req, res) => {
       dinero_inventario: resDinero.rows,
       balance_por_dia: resBalanceDia.rows,
       balance_por_tienda_dia: resBalanceTiendaDia.rows,
-      mes_primera_venta: resMesPrimeraVenta.rows
+      fecha_primera_venta: resFechaPrimeraVenta.rows, // [{ fecha_primera_venta: 'YYYY-MM-DD' | null }]
+      fecha_ultima_venta: resFechaUltimaVenta.rows    // [{ fecha_ultima_venta: 'YYYY-MM-DD' | null }]
     });
   } catch (error) {
     await client.query('ROLLBACK');

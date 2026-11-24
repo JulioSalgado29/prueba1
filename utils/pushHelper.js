@@ -47,7 +47,10 @@ async function enviarPushConBadge(destinatarios, { titulo, cuerpo, data = {} }) 
             payload: {
                 aps: {
                     sound: 'alerta_calza_app.wav',
+                    // Respaldo: la extensión de iOS (NotificationService) lo recalcula
+                    // con las notificaciones que realmente siguen en pantalla.
                     badge: badgePorUsuario[String(d.id_usuario)] || 1,
+                    'mutable-content': 1, // ✅ NUEVO: activa la extensión en el iPhone
                 },
             },
         },

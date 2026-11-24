@@ -76,19 +76,20 @@ router.post('/token/eliminar', async (req, res) => {
     }
 });
 
-// ✅ NUEVO: Marcar como vistas (pone el contador en 0)
-// POST /api/notificaciones/leidas
+// ✅ Sincronizar el contador de pendientes (la app envía cuántas siguen en el iPhone)
+// POST /api/notificaciones/leidas   body: { email_usuario, pendientes? }  (por defecto 0)
 router.post('/leidas', async (req, res) => {
     const { email_usuario } = req.body;
     if (!email_usuario) {
         return res.status(400).json({ error: 'Falta email_usuario' });
     }
+    const pendientes = Math.max(0, parseInt(req.body.pendientes, 10) || 0);
     try {
         const r = await pool.query(
-            `UPDATE usuario SET badge_pendientes = 0
+            `UPDATE usuario SET badge_pendientes = $2
              WHERE LOWER(email) = $1
              RETURNING badge_pendientes`,
-            [email_usuario.trim().toLowerCase()]
+            [email_usuario.trim().toLowerCase(), pendientes]
         );
         if (r.rows.length === 0) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
