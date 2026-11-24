@@ -24,6 +24,7 @@ const ingresoRoutes = require('./routes/ingreso');
 const usuarioRolRoutes = require('./routes/usuario_rol');
 const qrRoutes = require('./routes/qr');
 const adminRoutes = require('./routes/admin');
+const etiquetaRoutes = require('./routes/etiqueta_tamanio');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -57,6 +58,7 @@ app.use('/api/ingreso', ingresoRoutes);
 app.use('/api/usuario_rol', usuarioRolRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/etiqueta_tamanio', etiquetaRoutes);
 
 // Escuchar peticiones
 app.listen(PORT, '0.0.0.0', () => {
